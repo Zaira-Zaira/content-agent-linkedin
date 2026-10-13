@@ -341,7 +341,7 @@ const TABS = [
 ];
 function renderTabs() {
   const nav = $("#tabs"); nav.replaceChildren();
-  const counts = { goals: S.goals.filter((g) => g.status !== "done").length, heroes: S.heroes.length, posts: S.posts.filter((p) => ["draft", "ready", "needs_fix"].includes(p.status)).length, agent: S.tasks.filter((t) => t.status === "queued").length };
+  const counts = { goals: S.goals.filter((g) => g.status !== "done").length, heroes: S.heroes.length, posts: S.posts.filter((p) => ["draft", "ready", "needs_fix"].includes(p.status)).length, agent: S.tasks.filter((t) => ["queued", "running"].includes(t.status)).length };
   for (const [id, label] of TABS) {
     nav.append(h("button", { class: "tab", role: "tab", "aria-selected": String(S.tab === id), onclick: () => go(id) },
       label, counts[id] ? h("span", { class: "n" }, counts[id]) : null));
@@ -361,6 +361,7 @@ function render() {
   const node = h("div", { class: "view" });
   if (!S.db && S.dbChecked) node.append(h("div", { class: "banner" }, "Хранилище недоступно в этом просмотре. Откройте страницу в Claude, войдя в аккаунт."));
   if (S.db && !S.canWrite) node.append(h("div", { class: "banner" }, "Режим просмотра: изменения сохранять нельзя."));
+  const cb = copiedBox(); if (cb) node.prepend(cb);
   view(node);
   for (const el of node.querySelectorAll("textarea[id], input[id]:not([type=checkbox])")) if (S.drafts[el.id] != null && !el.disabled) el.value = S.drafts[el.id];
   app.replaceChildren(node);
@@ -402,11 +403,11 @@ function vOverview(root) {
   const g2 = h("div", { class: "grid2" });
   const top = S.heroes.filter((x) => x.status !== "rejected").slice(0, 5);
   const hp = h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Сильнейшие герои"), h("button", { class: "btn ghost", onclick: () => go("heroes") }, "Все герои →")));
-  hp.append(top.length ? h("div", { class: "list" }, top.map(heroRow)) : emptyBox("Героев пока нет", "Во вкладке «Агент» поставьте задачу «Найти новых героев» — и напишите мне в чате Claude «выполни задачи из дашборда»."));
+  hp.append(top.length ? h("div", { class: "list" }, top.map(heroRow)) : emptyBox("Героев пока нет", "Во вкладке «Агент» поставьте задачу «Найти новых героев» и нажмите «Запустить»."));
   g2.append(hp);
-  const tq = S.tasks.filter((t) => t.status === "queued");
+  const tq = S.tasks.filter((t) => ["queued", "running"].includes(t.status));
   const tp = h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Задачи агенту"), h("button", { class: "btn ghost", onclick: () => go("agent") }, "Управление →")));
-  tp.append(tq.length ? h("div", {}, tq.slice(0, 5).map(taskRow)) : h("p", { class: "note" }, "Нет задач в очереди. Поиск в интернете выполняется по вашей команде в чате Claude."));
+  tp.append(tq.length ? h("div", {}, runAllBtn(tq), tq.slice(0, 5).map(taskRow)) : h("p", { class: "note" }, "Нет задач в очереди."));
   g2.append(tp);
   root.append(g2);
 }
@@ -881,12 +882,12 @@ function goalDetail(g) {
 
   const acts = h("div", { class: "actions" },
     h("button", { class: "btn " + (plan ? "" : "primary"), disabled: busyP || !S.sample || !S.canWrite, onclick: () => makePlan(g) }, busyP ? "Составляю план…" : plan ? "Обновить план" : "Составить план"),
-    h("button", { class: "btn " + (plan ? "primary" : ""), disabled: !S.canWrite || !S.db, onclick: () => queueTask("goal_people", `Найти людей под цель «${g.title}»` + (plan ? ": " + plan.audience.map((a) => a.type).join("; ") : ""), { goalId: g.id }) }, "Найти людей"),
+    h("button", { class: "btn " + (plan ? "primary" : ""), disabled: !S.canWrite || !S.db, onclick: () => queueAndRun("goal_people", `Найти людей под цель «${g.title}»` + (plan ? ": " + plan.audience.map((a) => a.type).join("; ") : ""), { goalId: g.id }) }, "Найти людей"),
     h("button", { class: "btn", disabled: !S.sample, onclick: () => askAbout(`Цель «${g.title}» (id ${g.id}). Что делать дальше: кого из найденных взять в пост первым, какой угол выбрать, кого не хватает?`) }, "Спросить Claude"),
     g.status !== "done" ? h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("goals/" + g.id, { status: "done", done_at: nowIso() }) }, "Цель решена") : h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("goals/" + g.id, { status: "active" }) }, "Вернуть в работу"));
   p.append(acts);
-  const gq = S.tasks.filter((t) => t.goalId === g.id && t.status === "queued");
-  if (gq.length) p.append(h("p", { class: "note", style: "margin:0" }, `В очереди задач: ${gq.length}. Напишите в чате Claude: «выполни задачи из дашборда».`));
+  const gq = S.tasks.filter((t) => t.goalId === g.id && ["queued", "running"].includes(t.status));
+  if (gq.length) p.append(h("div", {}, h("div", { class: "panel-head" }, h("span", { class: "note" }, `Задачи по цели: ${gq.length}`), runAllBtn(gq)), gq.map(taskRow)));
 
   if (plan) {
     p.append(h("div", { class: "insight" }, h("small", {}, "План"), plan.summary || ""));
@@ -916,7 +917,7 @@ function goalDetail(g) {
       h("span", { class: "actions" },
         h("button", { class: "btn", disabled: S.busy["write:" + x.id] || !S.sample || !S.canWrite || !(x.facts || []).length, onclick: () => writePost(x, g.id) }, S.busy["write:" + x.id] ? "Пишу…" : "Пост под цель"),
         !(x.facts || []).length ? h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => queueTask("research", `Исследовать: ${x.hero} (под цель «${g.title}»)`, { heroId: x.id, goalId: g.id }) }, "Исследовать") : null)))));
-  } else p.append(h("p", { class: "note", style: "margin:0" }, "Пока никого. Нажмите «Найти людей» и напишите в чате Claude «выполни задачи из дашборда»."));
+  } else p.append(h("p", { class: "note", style: "margin:0" }, "Пока никого. Нажмите «Найти людей», затем «Запустить»."));
 
   if (posts.length) { p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, `Посты под цель (${posts.length})`), h("div", { class: "list" }, posts.map(postRow))); }
   p.append(h("div", { class: "actions" }, h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: (e) => confirmBtn(e.target, "Удалить цель?", () => remove("goals/" + g.id).then(() => { S.goalId = null; })) }, "Удалить цель")));
@@ -924,16 +925,60 @@ function goalDetail(g) {
 }
 
 // ---------- Агент ----------
+const TASK_STATUS = { queued: ["в очереди", "warn"], running: ["выполняется", ""], done: ["выполнено", "good"], failed: ["ошибка", "bad"] };
 function taskRow(t) {
+  const [l, c] = TASK_STATUS[t.status] || [t.status, ""];
+  const stuck = t.status === "running" && t.started_at && Date.now() - new Date(t.started_at) > 30 * 60e3;
   return h("div", { class: "task" },
     h("span", { class: "tt" }, t.text),
-    h("span", { class: "chips" }, h("span", { class: "chip " + (t.status === "done" ? "good" : "warn") }, t.status === "done" ? "выполнено" : "в очереди"), h("span", { class: "chip" }, fmtDate(t.created))),
+    h("span", { class: "chips" }, h("span", { class: "chip " + c }, t.status === "queued" && t.requested_at ? "отправлено в чат" : l), h("span", { class: "chip" }, fmtDate(t.created))),
+    t.status === "queued" ? h("div", { class: "actions", style: "grid-column:1/-1" },
+      h("button", { class: "btn primary", disabled: !S.canWrite, onclick: () => runTasks([t]) }, "Запустить"),
+      h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: (e) => confirmBtn(e.target, "Удалить?", () => remove("tasks/" + t.id)) }, "Удалить")) : null,
+    t.status === "running" ? h("div", { class: "res" }, stuck ? "Агент не ответил больше 30 минут." : "Агент работает: обычно 3–10 минут. Страница обновится сама.", stuck ? h("button", { class: "btn ghost", style: "margin-left:8px", onclick: () => save("tasks/" + t.id, { status: "queued" }) }, "Вернуть в очередь") : null) : null,
     t.result ? h("div", { class: "res" }, t.result) : null);
 }
+function runAllBtn(tasks) {
+  const q = tasks.filter((t) => t.status === "queued");
+  if (!q.length) return null;
+  return h("button", { class: "btn primary", disabled: !S.canWrite, onclick: () => runTasks(q) }, q.length > 1 ? `Запустить все (${q.length})` : "Запустить");
+}
+// Запуск: кнопка копирует готовую команду для чата Claude Code, где агент выполняет поиск
+function agentMessage(tasks) {
+  return `Выполни задачи из дашборда Hotel Deals Studio:\n` +
+    tasks.map((t) => `- tasks/${t.id} — ${t.text}`).join("\n");
+}
+function runTasks(tasks) {
+  if (!tasks.length) return;
+  const msg = agentMessage(tasks);
+  S.copied = msg; render();
+  // копируем синхронно в обработчике клика — иначе браузер не даст доступ к буферу
+  navigator.clipboard.writeText(msg)
+    .then(() => toast("Команда скопирована — вставьте её в чат Claude Code"))
+    .catch(() => toast("Скопируйте команду из блока ниже и вставьте в чат Claude Code"));
+  for (const t of tasks) save("tasks/" + t.id, { requested_at: nowIso() }).catch(() => {});
+}
+function copiedBox() {
+  if (!S.copied) return null;
+  const ta = h("textarea", { class: "short", readonly: true, "aria-label": "Команда для чата Claude" }); ta.value = S.copied;
+  ta.addEventListener("focus", () => ta.select());
+  return h("div", { class: "panel", style: "background:var(--accent-soft);grid-column:1/-1" },
+    h("strong", {}, "Команда для агента"),
+    h("p", { class: "note", style: "margin:0" }, "Вставьте её в чат Claude Code (сессия «Агент для этого»). Агент найдёт информацию и запишет результаты сюда — страница обновится сама."),
+    ta, h("div", { class: "actions" }, h("button", { class: "btn", onclick: () => copy(S.copied) }, "Скопировать ещё раз"), h("button", { class: "btn ghost", onclick: () => { S.copied = null; render(); } }, "Скрыть")));
+}
+
 async function queueTask(type, text, extra = {}, silent) {
   const id = new Date().toISOString().replace(/[:.]/g, "-") + "_" + Math.random().toString(36).slice(2, 5);
-  await save("tasks/" + id, { type, text, status: "queued", created: nowIso(), ...extra }, false);
-  if (!silent) toast("Задача поставлена. Напишите в чате Claude: «выполни задачи из дашборда»");
+  const task = { type, text, status: "queued", created: nowIso(), ...extra };
+  await save("tasks/" + id, task, false);
+  if (!silent) toast("Задача поставлена — нажмите «Запустить»");
+  return { id, ...task };
+}
+async function queueAndRun(type, text, extra = {}) {
+  const dup = S.tasks.find((t) => t.status === "queued" && t.type === type && t.text === text);
+  const task = dup || await queueTask(type, text, extra, true);
+  runTasks([task]);
 }
 function vAgent(root) {
   const g = h("div", { class: "grid2" });
@@ -957,14 +1002,14 @@ function vAgent(root) {
   const right = h("div", { class: "view" });
   const tsel = h("select", { id: "task-type" }, Object.entries(TASK_TYPES).map(([k, l]) => h("option", { value: k }, l)));
   const ttext = h("textarea", { id: "task-text", class: "short", placeholder: "Например: найти 5 героев из экосистемы — архитекторов люксовых отелей с проектами за последние 60 дней" });
-  const queued = S.tasks.filter((t) => t.status === "queued"), done = S.tasks.filter((t) => t.status !== "queued");
+  const queued = S.tasks.filter((t) => ["queued", "running"].includes(t.status)), done = S.tasks.filter((t) => !["queued", "running"].includes(t.status));
   right.append(h("section", { class: "panel" },
     h("h2", {}, "Задачи на поиск в интернете"),
-    h("p", { class: "note", style: "margin:0" }, "Поиск и исследование с веб-поиском выполняет Claude в чате. Поставьте задачу и напишите там: «выполни задачи из дашборда»."),
+    h("p", { class: "note", style: "margin:0" }, "Поиск в интернете выполняет агент в чате Claude Code. «Запустить» копирует команду — вставьте её в чат, результаты появятся здесь и в карточках героев."),
     h("label", { class: "f", for: "task-type" }, "Тип"), tsel,
     h("label", { class: "f", for: "task-text" }, "Что сделать"), ttext,
     h("div", { class: "actions" }, h("button", { class: "btn primary", disabled: !S.canWrite || !S.db, onclick: () => { const t = ttext.value.trim() || TASK_TYPES[tsel.value]; queueTask(tsel.value, t).then(() => clearDraft("task-text")); ttext.value = ""; } }, "Поставить задачу")),
-    queued.length ? h("div", {}, queued.map(taskRow)) : h("p", { class: "note" }, "Очередь пуста."),
+    queued.length ? h("div", {}, h("div", { class: "actions" }, runAllBtn(queued)), queued.map(taskRow)) : h("p", { class: "note" }, "Очередь пуста."),
     done.length ? h("details", {}, h("summary", { class: "note" }, `Выполненные (${done.length})`), done.slice(0, 20).map(taskRow)) : null));
 
   // корректировки
@@ -992,7 +1037,7 @@ function dataSummary() {
 }
 const CHAT_RULES = `Ты агент контент-конвейера Заиры — эксперта по сделкам с люксовыми и ультра-люксовыми отелями. Конвейер: разведчик (ищет героев, скоринг 0–5 по 6 критериям, берём от 20/30), исследователь (факты со ссылками), аналитик (линза и инсайт, тест на уникальность), автор (2 варианта поста), редактор (проверки), человек (одобряет). Баланс в месяц: 35% продающая сторона, 35% покупающая, 30% экосистема. Одного героя не чаще раза в 3 месяца. Ритм 3–4 поста в неделю. Главная метрика — входящие сообщения.
 
-Отвечай по-русски, коротко и по делу (анализ героев — на русском, посты — всегда на английском: если предлагаешь хук или текст поста, пиши его на английском), опираясь на данные дашборда ниже. Ты НЕ можешь искать в интернете: если нужен поиск или исследование — вызови инструмент queue_task и скажи, что задача поставлена и её выполнит Claude в чате по команде «выполни задачи из дашборда». Если пользователь даёт правило для всех будущих постов — вызови add_correction. Если пользователь описывает бизнес-задачу («найти покупателей на…», «выйти на операторов…») — создай цель через create_goal, а затем поставь задачу goal_people с её goalId. Если просит написать пост о герое — вызови write_post. Не выдумывай факты о героях.`;
+Отвечай по-русски, коротко и по делу (анализ героев — на русском, посты — всегда на английском: если предлагаешь хук или текст поста, пиши его на английском), опираясь на данные дашборда ниже. Ты НЕ можешь искать в интернете: если нужен поиск или исследование — вызови инструмент queue_task и скажи, что задача поставлена и её можно запустить кнопкой «Запустить» во вкладке «Агент». Если пользователь даёт правило для всех будущих постов — вызови add_correction. Если пользователь описывает бизнес-задачу («найти покупателей на…», «выйти на операторов…») — создай цель через create_goal, а затем поставь задачу goal_people с её goalId. Если просит написать пост о герое — вызови write_post. Не выдумывай факты о героях.`;
 async function sendChat() {
   const text = (S.chatDraft || "").trim();
   if (!text || !S.sample || S.busy.chat) return;
