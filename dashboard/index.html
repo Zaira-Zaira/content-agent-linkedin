@@ -1,0 +1,855 @@
+<title>Hotel Deals Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky top bar with tabs; each tab is a working surface (list → detail split on wide screens, stacked on phones). */
+:root {
+  --bg: #f3f4f1;
+  --surface: #ffffff;
+  --sunk: #e9ebe6;
+  --line: #d6d9d2;
+  --ink: #18201d;
+  --muted: #5d6762;
+  --accent: #1f5c4e;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcebe5;
+  --brass: #8a6a1f;
+  --brass-soft: #f2ead6;
+  --good: #2c7a4b;
+  --good-soft: #def0e3;
+  --warn: #9a6408;
+  --warn-soft: #f8ecd2;
+  --bad: #b23a2e;
+  --bad-soft: #f8dfdb;
+  --display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --surface: #19201d; --sunk: #0d1110; --line: #2c3632; --ink: #e6ebe8; --muted: #9aa69f;
+    --accent: #6fbfa6; --accent-ink: #0d1512; --accent-soft: #1d3a32; --brass: #d6b467; --brass-soft: #3a311c;
+    --good: #6cc48d; --good-soft: #1b3426; --warn: #e3ae4f; --warn-soft: #3a2e15; --bad: #ee8b80; --bad-soft: #3e1f1b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --surface: #19201d; --sunk: #0d1110; --line: #2c3632; --ink: #e6ebe8; --muted: #9aa69f;
+  --accent: #6fbfa6; --accent-ink: #0d1512; --accent-soft: #1d3a32; --brass: #d6b467; --brass-soft: #3a311c;
+  --good: #6cc48d; --good-soft: #1b3426; --warn: #e3ae4f; --warn-soft: #3a2e15; --bad: #ee8b80; --bad-soft: #3e1f1b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--body); font-size: 14.5px; line-height: 1.5; }
+button, input, textarea, select { font: inherit; color: inherit; }
+a { color: var(--accent); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1280px; margin: 0 auto; padding: 14px 20px 0; display: flex; flex-direction: column; gap: 10px; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: .01em; }
+.brand span { color: var(--muted); font-size: 13px; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tab { border: 0; background: none; padding: 9px 14px 11px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; white-space: nowrap; font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab .n { font-family: var(--mono); font-size: 11.5px; margin-left: 6px; color: var(--muted); }
+
+main { max-width: 1280px; margin: 0 auto; padding-block: 20px 60px; padding-inline: 20px; }
+@media (max-width: 520px) { main, .top-in { padding-inline: 16px; } }
+.view { display: flex; flex-direction: column; gap: 18px; }
+
+.banner { padding: 10px 14px; border-radius: var(--radius); background: var(--warn-soft); color: var(--warn); font-size: 13.5px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.kpi .lbl { font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+.kpi .val { font-family: var(--mono); font-size: 26px; font-variant-numeric: tabular-nums; }
+.kpi .sub { font-size: 12.5px; color: var(--muted); }
+.kpi.main { border-color: var(--accent); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel h2 { font-family: var(--display); font-size: 14px; font-weight: 500; letter-spacing: .01em; }
+.panel-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+
+.split { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.list { display: flex; flex-direction: column; gap: 6px; }
+.row { text-align: left; width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.row:hover { border-color: var(--muted); }
+.row[aria-current="true"] { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.row .t { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.row .s { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.score { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--brass); white-space: nowrap; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--sunk); color: var(--muted); white-space: nowrap; letter-spacing: .01em; }
+.chip.sell_side { background: var(--brass-soft); color: var(--brass); }
+.chip.buy_side { background: var(--accent-soft); color: var(--accent); }
+.chip.ecosystem { background: var(--sunk); color: var(--ink); }
+.chip.good { background: var(--good-soft); color: var(--good); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.fbtn { border: 1px solid var(--line); background: var(--surface); padding: 4px 10px; border-radius: 99px; cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.fbtn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 7px 13px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13.5px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.ghost { border-color: transparent; background: none; color: var(--muted); }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: default; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.kv { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px 16px; }
+@media (max-width: 520px) { .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; } .kv dd { margin-bottom: 8px; } }
+.kv dt { color: var(--muted); font-size: 12.5px; padding-top: 1px; }
+.kv dd { margin: 0; }
+.insight { background: var(--accent-soft); border-radius: 8px; padding: 12px 14px; font-size: 15.5px; line-height: 1.45; }
+.insight small { display: block; font-size: 11.5px; color: var(--accent); letter-spacing: .04em; text-transform: uppercase; margin-bottom: 4px; }
+.facts { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.facts li { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.facts li:last-child { border-bottom: 0; }
+.facts .num { font-family: var(--mono); font-size: 13px; color: var(--brass); font-weight: 500; overflow-wrap: anywhere; }
+.facts .src { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+blockquote { margin: 0; padding: 6px 12px; border-left: 2px solid var(--brass); color: var(--ink); font-style: italic; }
+.scores { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.sc { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.bar { height: 5px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--brass); }
+
+.variants { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 1100px) { .variants { grid-template-columns: minmax(0, 1fr); } }
+.variant { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.variant.chosen { border-color: var(--accent); }
+.post-text { white-space: pre-wrap; font-size: 14.5px; line-height: 1.55; overflow-wrap: anywhere; }
+.checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.checks li::before { content: "✓ "; color: var(--good); }
+.checks li.err::before { content: "✕ "; color: var(--bad); }
+.checks li.wrn::before { content: "! "; color: var(--warn); }
+textarea, input[type="text"], input[type="url"], input[type="number"], select { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 9px 11px; }
+textarea { min-height: 280px; resize: vertical; line-height: 1.55; }
+textarea.short { min-height: 70px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.mgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.note { font-size: 12.5px; color: var(--muted); }
+.count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; color: var(--muted); font-weight: 500; }
+td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+th.n { text-align: right; }
+
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--muted); font-family: var(--body); font-size: 11px; }
+.balance { display: flex; flex-direction: column; gap: 10px; }
+.bal-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 70px; gap: 10px; align-items: center; font-size: 13px; }
+@media (max-width: 520px) { .bal-row { grid-template-columns: 100px minmax(0, 1fr) 56px; } }
+.bal-track { position: relative; height: 10px; background: var(--sunk); border-radius: 5px; }
+.bal-fill { position: absolute; inset: 0 auto 0 0; border-radius: 5px; background: var(--accent); }
+.bal-target { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--brass); }
+
+.chat { display: flex; flex-direction: column; gap: 10px; max-height: 520px; overflow-y: auto; padding-right: 4px; }
+.msg { padding: 10px 12px; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 92%; }
+.msg.me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); }
+.msg.ai { align-self: flex-start; background: var(--sunk); }
+.msg.sys { align-self: center; font-size: 12px; color: var(--muted); background: none; padding: 2px; }
+.composer { display: flex; gap: 8px; align-items: flex-end; }
+.composer textarea { min-height: 46px; height: 46px; }
+.suggest { display: flex; gap: 6px; flex-wrap: wrap; }
+.task { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.task:last-child { border-bottom: 0; }
+.task .tt { font-weight: 500; overflow-wrap: anywhere; }
+.task .res { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); white-space: pre-wrap; }
+.corr { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); align-items: flex-start; }
+.corr:last-child { border-bottom: 0; }
+.empty { padding: 28px 18px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.empty strong { color: var(--ink); font-weight: 600; }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 13.5px; z-index: 20; max-width: calc(100% - 32px); }
+.thinking { color: var(--muted); font-style: italic; }
+@media (prefers-reduced-motion: no-preference) { .row, .btn, .tab { transition: border-color .15s, background .15s, color .15s; } }
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><h1>Hotel Deals Studio</h1><span>посты-анализы о люксовых отельных активах</span></div>
+    <nav class="tabs" role="tablist" id="tabs"></nav>
+  </div>
+</header>
+<main id="app"></main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+"use strict";
+
+// ---------- справочники ----------
+const SEG = {
+  sell_side: { label: "Продавцы", full: "Продавцы, владельцы", share: 0.35 },
+  buy_side: { label: "Инвесторы", full: "Покупатели, инвесторы", share: 0.35 },
+  ecosystem: { label: "Экосистема", full: "Экосистема и источники сделок", share: 0.30 },
+};
+const POST_STATUS = {
+  draft: ["Черновик", "warn"], ready: ["Ждёт решения", "warn"], needs_fix: ["Нужна правка", "bad"],
+  approved: ["Одобрен", "good"], published: ["Опубликован", "good"],
+};
+const HERO_STATUS = { candidate: ["Кандидат", ""], researched: ["Исследован", "good"], rejected: ["Отклонён", "bad"], need_more_data: ["Мало фактов", "warn"] };
+const SCORE_LABELS = { fit: "Попадание в цель", fresh: "Свежий повод", unique: "Уникальность", reader_value: "Польза читателю", reaction: "Реакция героя", topic_link: "Связь с темами" };
+const KEYWORDS = ["luxury hotel","ultra-luxury","hospitality investment","hotel transaction","hotel m&a","отел","инвестиции в отели","продажа отеля","family office","private equity","branded residences","revpar","adr","cap rate","resort","boutique hotel","design hotel","real estate"];
+const BANNED = ["в современном мире","не секрет","играет ключевую роль","уникальная возможность","стоит отметить","важно понимать","в заключение","давайте разберёмся","давайте разберемся","погрузимся","инновационн","эффективные решения","новый уровень","синерги","вдохновляет","настоящие профессионалы","команда мечты","друзья, всем привет","сегодня хочу рассказать","гениальн","невероятн","лучший","лучшая","лучшее"];
+const FORBIDDEN_STARTS = ["сегодня хочу рассказать","друзья","в современном мире","не секрет"];
+const TASK_TYPES = { scout: "Найти новых героев", research: "Исследовать героя", deepen: "Дособрать факты", other: "Другое" };
+
+const AUTHOR_RULES = `Ты пишешь посты от имени Заиры, эксперта по покупке и продаже люксовых и ультра-люксовых отелей с уникальной концепцией и дизайном. Ты не копирайтер и не нейросеть: ты практик, который глубоко разобрал чужую компанию и делится наблюдением с умными коллегами.
+
+ЦЕЛЬ: нужные люди (сегмент героя) замечают автора, получают пользу, видят в нём эксперта и сами хотят написать. Герой чувствует, что его работу поняли глубже других.
+
+ВХОД: карточка героя. Используй ТОЛЬКО факты, цифры и цитаты из карточки. Ничего не придумывай. Если для сильного поста не хватает фактов — status NEED_MORE_DATA и список, чего не хватает.
+
+СТРУКТУРА: 1) Хук 1–2 строки, понятен без контекста и без названия компании (неожиданная цифра, противоречие, вопрос, признание, наблюдение-интрига, контраст «все vs они», конкретная сцена, ироничная правда). 2) Факт: что сделал герой, с отметкой @handle и цифрой. 3) Разбор: наше наблюдение (insight), 3–6 коротких строк. 4) Урок для читателя. 5) Финал: вопрос для развёрнутых комментариев или мягкое приглашение в диалог. Без продажи.
+
+ТОН: живой разговорный язык, первое лицо (женский род), короткие предложения, можно начинать с «И» и «Но». Одна честная оговорка. Одна ироничная фраза максимум — над ситуацией, рынком или собой, никогда над героем. Хвали через анализ, не оценками.
+
+СТОП-ЛИСТ: «в современном мире», «не секрет», «играет ключевую роль», «уникальная возможность», «стоит отметить», «важно понимать», «давайте разберёмся», «погрузимся», «в заключение», «инновационный», «синергия», «новый уровень», «вдохновляет», «настоящие профессионалы», «гениально», «невероятно», «лучший», «друзья, всем привет», «сегодня хочу рассказать». Не более одного «!», не более 3 эмодзи.
+
+ФОРМАТ: 600–1300 знаков, максимум 1800. Абзацы 1–3 строки, пустая строка между ними. Ключевая цифра на отдельной строке. В первых двух строках одна цифра и одно ключевое слово (luxury hotel, hospitality investment, hotel transaction, отели, инвестиции в отели, family office, private equity, branded residences, RevPAR, ADR, cap rate, resort, boutique hotel, design hotel). Подсвечивай, как концепция, дизайн, локация и выбор оператора создают стоимость актива. Никаких непубличных деталей сделок; свой опыт обезличенно. В конце 3–5 хэштегов. Отметки: герой обязательно, всего не больше 3. Цитаты дословно, до 15 слов. Ссылок в тексте нет — они идут в первый комментарий.`;
+
+// ---------- состояние ----------
+const S = {
+  tab: "overview", heroes: [], posts: [], tasks: [], corrections: [],
+  heroId: null, postId: null, heroFilter: "all", postFilter: "open",
+  dbReady: false, db: null, sample: null, canWrite: true, chat: [], busy: {}, drafts: {},
+};
+document.addEventListener("input", (e) => { const t = e.target; if (t.id && t.id !== "chat-in" && t.type !== "checkbox") S.drafts[t.id] = t.value; });
+const clearDraft = (...ids) => ids.forEach((id) => delete S.drafts[id]);
+try { S.tab = localStorage.getItem("hds.tab") || "overview"; } catch (e) {}
+
+const $ = (sel, el = document) => el.querySelector(sel);
+function h(tag, attrs = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "html") el.innerHTML = v;
+    else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : String(kid));
+  return el;
+}
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => (t.hidden = true), 2600);
+}
+const nowIso = () => new Date().toISOString();
+const fmtDate = (s) => { if (!s) return "—"; const d = new Date(s); return isNaN(d) ? s : d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" }); };
+const total = (sc) => sc ? Object.values(sc).reduce((a, b) => a + Math.max(0, Math.min(5, +b || 0)), 0) : 0;
+const segChip = (s) => h("span", { class: "chip " + s }, SEG[s]?.label || s || "—");
+const statusChip = (map, s) => { const [l, c] = map[s] || [s, ""]; return h("span", { class: "chip " + c }, l); };
+const slug = (t) => (t || "x").toLowerCase().replace(/[^a-zа-я0-9ё]+/gi, "-").replace(/^-|-$/g, "").slice(0, 50) || "x";
+const sampleErr = (e) => ({
+  not_granted: "Доступ к Claude не разрешён для этой страницы.",
+  rate_limited: "Слишком много запросов подряд. Подождите минуту.",
+  cancelled: "Остановлено.",
+}[e?.code] || "Claude не ответил: " + (e?.message || "ошибка"));
+
+// ---------- проверки редактора (как в checks.py) ----------
+function checkPost(text, handle, hero) {
+  const errors = [], warnings = [], ok = [];
+  const body = (text || "").trim(), low = body.toLowerCase();
+  const n = body.length;
+  if (n < 600 || n > 1800) errors.push(`Длина ${n} знаков, нужно 600–1800`);
+  else if (n > 1300) warnings.push(`Длина ${n} — выше оптимума 1300`); else ok.push(`Длина ${n} знаков`);
+  const paras = body.split(/\n\s*\n/).filter((p) => p.trim());
+  const longP = paras.filter((p) => !/^(\s*#[\p{L}\p{N}_-]+\s*)+$/u.test(p) && (p.split("\n").filter((l) => l.trim()).length > 3 || p.length > 320));
+  longP.length ? errors.push(`Длинных абзацев: ${longP.length}`) : ok.push("Абзацы короткие");
+  const banned = BANNED.filter((w) => low.includes(w));
+  banned.length ? errors.push("Стоп-лист: " + banned.join(", ")) : ok.push("Без слов из стоп-листа");
+  const first = (body.split("\n")[0] || "").toLowerCase();
+  if (FORBIDDEN_STARTS.some((s) => first.startsWith(s))) errors.push("Хук начинается с запрещённой фразы");
+  const head = body.split("\n").slice(0, 2).join(" ").toLowerCase();
+  /\d/.test(head) ? ok.push("Цифра в первых строках") : errors.push("В первых двух строках нет цифры");
+  if (!KEYWORDS.some((k) => head.includes(k))) warnings.push("В первых строках нет ключевого слова");
+  const ex = (body.match(/!/g) || []).length; if (ex > 1) errors.push(`«!»: ${ex}, максимум 1`);
+  const emo = (body.match(/\p{Extended_Pictographic}/gu) || []).length; if (emo > 3) errors.push(`Эмодзи: ${emo}, максимум 3`);
+  const mentions = body.match(/(^|[^\w@])@[\p{L}\p{N}_.-]+/gu) || [];
+  if (mentions.length > 3) errors.push(`Отметок: ${mentions.length}, максимум 3`);
+  const hd = (handle || "").trim();
+  if (hd.startsWith("@")) (low.includes(hd.toLowerCase()) ? ok.push("Герой отмечен") : errors.push(`Герой не отмечен (${hd})`));
+  else if (hero && !low.includes(hero.split(" ")[0].toLowerCase())) errors.push("Герой не упомянут");
+  else warnings.push("Отметьте героя вручную при публикации");
+  const tags = body.match(/(^|\s)#[\p{L}\p{N}_-]+/gu) || [];
+  (tags.length >= 3 && tags.length <= 5) ? ok.push(`Хэштегов: ${tags.length}`) : errors.push(`Хэштегов: ${tags.length}, нужно 3–5`);
+  if (/https?:\/\/|www\./.test(body)) errors.push("Ссылка в тексте — перенесите в первый комментарий");
+  const tail = body.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#")).join("\n").slice(-300).toLowerCase();
+  (tail.includes("?") || tail.includes("пишите") || tail.includes("в личк")) ? ok.push("Есть финальный вопрос") : warnings.push("Нет финального вопроса");
+  return { errors, warnings, ok, passed: errors.length === 0 };
+}
+
+// ---------- данные ----------
+async function save(path, data, merge = true) {
+  if (!S.db) { toast("Хранилище недоступно в этом просмотре"); throw new Error("no db"); }
+  try {
+    const ref = S.db.doc(path);
+    if (merge) {
+      const snap = await ref.get();
+      await ref.set({ ...(snap.exists ? snap.data() : {}), ...data });
+    } else await ref.set(data);
+  } catch (e) {
+    if (e?.code === "invalid_argument") { S.canWrite = false; render(); toast("Не сохранилось: нет прав или неверные данные"); }
+    else if (e?.code === "quota_exceeded") toast("Хранилище заполнено: удалите старые записи");
+    else toast("Не сохранилось: " + (e?.message || e));
+    throw e;
+  }
+}
+async function remove(path) { try { await S.db.doc(path).delete(); } catch (e) { toast("Не удалилось: " + (e?.message || e)); } }
+
+function subscribe() {
+  const sub = (name, key, sortFn) => S.db.collection(name).onSnapshot(
+    (snap) => { S[key] = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort(sortFn); S.dbReady = true; render(); },
+    (e) => { if (e?.code === "revoked") { S.db = null; render(); } }
+  );
+  sub("heroes", "heroes", (a, b) => (b.total ?? total(b.scores)) - (a.total ?? total(a.scores)));
+  sub("posts", "posts", (a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+  sub("tasks", "tasks", (a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+  S.db.doc("settings/guidelines").onSnapshot((d) => { S.corrections = d.exists ? (d.data().corrections || []) : []; render(); });
+}
+
+// ---------- вкладки ----------
+const TABS = [
+  ["overview", "Обзор"], ["heroes", "Герои"], ["posts", "Посты"], ["metrics", "Метрики"], ["agent", "Агент"],
+];
+function renderTabs() {
+  const nav = $("#tabs"); nav.replaceChildren();
+  const counts = { heroes: S.heroes.length, posts: S.posts.filter((p) => ["draft", "ready", "needs_fix"].includes(p.status)).length, agent: S.tasks.filter((t) => t.status === "queued").length };
+  for (const [id, label] of TABS) {
+    nav.append(h("button", { class: "tab", role: "tab", "aria-selected": String(S.tab === id), onclick: () => go(id) },
+      label, counts[id] ? h("span", { class: "n" }, counts[id]) : null));
+  }
+}
+function go(tab, extra = {}) {
+  Object.assign(S, extra, { tab });
+  try { localStorage.setItem("hds.tab", tab); } catch (e) {}
+  render(); window.scrollTo({ top: 0 });
+}
+
+function render() {
+  renderTabs();
+  const app = $("#app");
+  const focusId = document.activeElement?.id;
+  const view = { overview: vOverview, heroes: vHeroes, posts: vPosts, metrics: vMetrics, agent: vAgent }[S.tab] || vOverview;
+  const node = h("div", { class: "view" });
+  if (!S.db && S.dbChecked) node.append(h("div", { class: "banner" }, "Хранилище недоступно в этом просмотре. Откройте страницу в Claude, войдя в аккаунт."));
+  if (S.db && !S.canWrite) node.append(h("div", { class: "banner" }, "Режим просмотра: изменения сохранять нельзя."));
+  view(node);
+  for (const el of node.querySelectorAll("textarea[id], input[id]:not([type=checkbox])")) if (S.drafts[el.id] != null && !el.disabled) el.value = S.drafts[el.id];
+  app.replaceChildren(node);
+  if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); if (el.setSelectionRange && el.value != null) { const l = el.value.length; try { el.setSelectionRange(l, l); } catch (e) {} } } }
+}
+
+// ---------- Обзор ----------
+function vOverview(root) {
+  const pub = S.posts.filter((p) => p.status === "published");
+  const withM = pub.filter((p) => p.metrics);
+  const inbound = withM.reduce((a, p) => a + (+p.metrics.inbound_messages || 0), 0);
+  const heroReact = withM.length ? Math.round(100 * withM.filter((p) => p.metrics.hero_reacted).length / withM.length) : null;
+  const queue = S.posts.filter((p) => ["ready", "needs_fix", "draft"].includes(p.status));
+  const thisWeek = pub.filter((p) => p.published_at && (Date.now() - new Date(p.published_at)) < 7 * 864e5).length;
+
+  root.append(h("div", { class: "kpis" },
+    kpi("Входящие после постов", inbound, withM.length ? `по ${withM.length} постам с метриками` : "метрик пока нет", true),
+    kpi("Реакция героев", heroReact == null ? "—" : heroReact + "%", "ориентир: от 30%"),
+    kpi("Ждут вашего решения", queue.length, queue.length ? "откройте «Посты»" : "очередь пуста"),
+    kpi("Опубликовано за неделю", thisWeek, "ритм: 3–4 в неделю"),
+    kpi("Героев в базе", S.heroes.length, `${S.heroes.filter((x) => x.status === "researched").length} исследовано`),
+  ));
+
+  const g = h("div", { class: "grid2" });
+  // очередь
+  const q = h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Очередь на решение"), h("button", { class: "btn ghost", onclick: () => go("posts") }, "Все посты →")));
+  if (!queue.length) q.append(emptyBox("Черновиков нет", "Откройте героя и нажмите «Написать пост», или попросите агента найти новых героев."));
+  else q.append(h("div", { class: "list" }, queue.slice(0, 6).map((p) => postRow(p))));
+  g.append(q);
+  // баланс
+  g.append(balancePanel());
+  root.append(g);
+
+  const g2 = h("div", { class: "grid2" });
+  const top = S.heroes.filter((x) => x.status !== "rejected").slice(0, 5);
+  const hp = h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Сильнейшие герои"), h("button", { class: "btn ghost", onclick: () => go("heroes") }, "Все герои →")));
+  hp.append(top.length ? h("div", { class: "list" }, top.map(heroRow)) : emptyBox("Героев пока нет", "Во вкладке «Агент» поставьте задачу «Найти новых героев» — и напишите мне в чате Claude «выполни задачи из дашборда»."));
+  g2.append(hp);
+  const tq = S.tasks.filter((t) => t.status === "queued");
+  const tp = h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Задачи агенту"), h("button", { class: "btn ghost", onclick: () => go("agent") }, "Управление →")));
+  tp.append(tq.length ? h("div", {}, tq.slice(0, 5).map(taskRow)) : h("p", { class: "note" }, "Нет задач в очереди. Поиск в интернете выполняется по вашей команде в чате Claude."));
+  g2.append(tp);
+  root.append(g2);
+}
+function kpi(lbl, val, sub, main) { return h("div", { class: "kpi" + (main ? " main" : "") }, h("span", { class: "lbl" }, lbl), h("span", { class: "val" }, val), h("span", { class: "sub" }, sub)); }
+function emptyBox(title, text, action) { return h("div", { class: "empty" }, h("strong", {}, title), h("span", {}, text), action || null); }
+
+function balancePanel() {
+  const month = new Date().toISOString().slice(0, 7);
+  const counted = S.posts.filter((p) => ["approved", "published"].includes(p.status) && String(p.created || "").startsWith(month));
+  const tot = counted.length;
+  const p = h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Баланс сегментов за месяц"), h("span", { class: "count" }, `${tot} постов`)));
+  const b = h("div", { class: "balance" });
+  for (const [k, s] of Object.entries(SEG)) {
+    const c = counted.filter((x) => x.segment === k).length;
+    const share = tot ? c / tot : 0;
+    b.append(h("div", { class: "bal-row" },
+      h("span", {}, s.full),
+      h("div", { class: "bal-track", title: `цель ${Math.round(s.share * 100)}%` },
+        h("div", { class: "bal-fill", style: `width:${Math.round(share * 100)}%` }),
+        h("div", { class: "bal-target", style: `left:${Math.round(s.share * 100)}%` })),
+      h("span", { class: "count" }, `${Math.round(share * 100)}% · ${c}`)));
+  }
+  p.append(b, h("p", { class: "note" }, "Золотая черта — цель: 35% продавцы, 35% инвесторы, 30% экосистема."));
+  return p;
+}
+
+// ---------- Герои ----------
+function heroRow(x) {
+  return h("button", { class: "row", "aria-current": String(S.heroId === x.id), onclick: () => go("heroes", { heroId: x.id }) },
+    h("span", { class: "t" }, h("span", {}, x.hero), h("span", { class: "score" }, (x.total ?? total(x.scores)) + "/30")),
+    h("span", { class: "chips" }, segChip(x.segment), statusChip(HERO_STATUS, x.status || "candidate"), x.company && x.company !== x.hero ? h("span", { class: "chip" }, x.company) : null),
+    h("span", { class: "s" }, x.insight || x.occasion || x.why || ""));
+}
+function vHeroes(root) {
+  const filters = [["all", "Все"], ["sell_side", "Продавцы"], ["buy_side", "Инвесторы"], ["ecosystem", "Экосистема"], ["candidate", "Кандидаты"], ["researched", "Исследованы"]];
+  const list = S.heroes.filter((x) => S.heroFilter === "all" || x.segment === S.heroFilter || (x.status || "candidate") === S.heroFilter);
+  const left = h("section", { class: "panel" },
+    h("div", { class: "panel-head" }, h("h2", {}, "Люди и компании"), h("span", { class: "count" }, list.length)),
+    h("div", { class: "filters" }, filters.map(([k, l]) => h("button", { class: "fbtn", "aria-pressed": String(S.heroFilter === k), onclick: () => { S.heroFilter = k; render(); } }, l))),
+    list.length ? h("div", { class: "list" }, list.map(heroRow)) : emptyBox(S.heroes.length ? "Никого в этом фильтре" : "Героев пока нет", "Новых героев находит агент: вкладка «Агент» → «Найти новых героев»."));
+  const hero = S.heroes.find((x) => x.id === S.heroId) || list[0];
+  root.append(h("div", { class: "split" }, left, hero ? heroDetail(hero) : h("section", { class: "panel" }, emptyBox("Выберите героя", "Здесь появится карточка: факты со ссылками, анализ, инсайт и посты."))));
+}
+function heroDetail(x) {
+  const p = h("section", { class: "panel" });
+  p.append(h("div", { class: "panel-head" },
+    h("div", {}, h("h2", { style: "font-size:18px" }, x.hero), h("div", { class: "note" }, [x.company !== x.hero ? x.company : null, x.handle].filter(Boolean).join(" · "))),
+    h("div", { class: "chips" }, segChip(x.segment), x.role ? h("span", { class: "chip" }, x.role) : null, statusChip(HERO_STATUS, x.status || "candidate"))));
+  if (x.one_liner) p.append(h("p", { style: "margin:0" }, x.one_liner));
+  if (x.occasion) p.append(h("p", { class: "note", style: "margin:0" }, `Повод (${fmtDate(x.occasion_date)}): ${x.occasion}`));
+
+  const acts = h("div", { class: "actions" });
+  const busyW = S.busy["write:" + x.id];
+  acts.append(h("button", { class: "btn primary", disabled: busyW || !S.sample || !S.canWrite || !(x.facts || []).length, onclick: () => writePost(x), title: (x.facts || []).length ? "" : "Сначала нужны факты из исследования" }, busyW ? "Пишу пост…" : "Написать пост"));
+  acts.append(h("button", { class: "btn", disabled: !S.canWrite, onclick: () => queueTask((x.facts || []).length ? "deepen" : "research", `${(x.facts || []).length ? "Дособрать факты" : "Исследовать"}: ${x.hero}`, { heroId: x.id }) }, (x.facts || []).length ? "Дособрать факты" : "Исследовать"));
+  acts.append(h("button", { class: "btn", onclick: () => askAbout(`Расскажи про героя «${x.hero}»: в чём сильная сторона для поста и какие риски?`) }, "Спросить Claude"));
+  if (x.status !== "rejected") acts.append(h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: () => save("heroes/" + x.id, { status: "rejected", updated: nowIso() }) }, "Отклонить"));
+  else acts.append(h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("heroes/" + x.id, { status: x.facts?.length ? "researched" : "candidate" }) }, "Вернуть"));
+  p.append(acts);
+  if (!S.sample && S.sampleChecked) p.append(h("p", { class: "note" }, "Написание постов прямо на странице работает при открытии в Claude."));
+
+  if (x.insight) p.append(h("div", { class: "insight" }, h("small", {}, "Инсайт · " + (x.lens || "линза")), x.insight));
+  const kv = h("dl", { class: "kv" });
+  for (const [k, l] of [["different_from_market", "Не как все"], ["risky_decision", "Рискованное решение"], ["lesson_for_reader", "Урок читателю"], ["our_angle", "Наш угол"], ["why", "Почему этот герой"]]) {
+    if (x[k]) kv.append(h("dt", {}, l), h("dd", {}, x[k]));
+  }
+  if (kv.childNodes.length) p.append(kv);
+
+  if (x.scores) {
+    p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, `Скоринг ${total(x.scores)}/30`));
+    p.append(h("div", { class: "scores" }, Object.entries(SCORE_LABELS).map(([k, l]) => h("div", { class: "sc" }, h("span", {}, `${l} · ${x.scores[k] ?? 0}`), h("div", { class: "bar" }, h("i", { style: `width:${(x.scores[k] || 0) * 20}%` }))))));
+  }
+  if ((x.facts || []).length) {
+    p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, `Факты (${x.facts.length})`));
+    p.append(h("ul", { class: "facts" }, x.facts.map((f) => h("li", {}, h("span", { class: "num" }, f.number || "—"),
+      h("div", {}, h("div", {}, f.fact), h("div", { class: "src" }, f.date ? fmtDate(f.date) + " · " : "", /^https?:/.test(f.source_url || "") ? h("a", { href: f.source_url, target: "_blank", rel: "noopener" }, hostOf(f.source_url)) : (f.source_url || "без ссылки")))))));
+  }
+  if ((x.quotes || []).length) {
+    p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, "Цитаты"));
+    for (const q of x.quotes) p.append(h("blockquote", {}, q.text, " ", /^https?:/.test(q.source_url || "") ? h("a", { href: q.source_url, target: "_blank", rel: "noopener", class: "note" }, "источник") : null));
+  }
+  const hp = S.posts.filter((po) => po.heroId === x.id);
+  if (hp.length) { p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, "Посты об этом герое"), h("div", { class: "list" }, hp.map((po) => postRow(po)))); }
+
+  // заметка
+  const nid = "note-" + x.id;
+  const note = h("textarea", { id: nid, class: "short", placeholder: "Ваши заметки о герое: созвон, контекст, что не упоминать…" });
+  note.value = x.my_notes || "";
+  p.append(h("label", { class: "f", for: nid }, "Мои заметки (приватные данные созвона в пост попадают только с согласия героя)"), note,
+    h("div", { class: "actions" },
+      h("button", { class: "btn", disabled: !S.canWrite, onclick: () => save("heroes/" + x.id, { my_notes: note.value, updated: nowIso() }).then(() => { clearDraft(nid); toast("Заметка сохранена"); }) }, "Сохранить заметку"),
+      h("label", { class: "note", style: "display:flex;gap:6px;align-items:center" }, h("input", { type: "checkbox", id: "consent-" + x.id, checked: !!x.hero_consent, disabled: !S.canWrite, onchange: (e) => save("heroes/" + x.id, { hero_consent: e.target.checked }) }), "Герой согласен на использование разговора")));
+  return p;
+}
+const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return u; } };
+
+// ---------- Посты ----------
+function postRow(p) {
+  const v = p.chosen ? (p.final_text || p["variant_" + p.chosen]) : p.variant_a;
+  return h("button", { class: "row", "aria-current": String(S.postId === p.id && S.tab === "posts"), onclick: () => go("posts", { postId: p.id }) },
+    h("span", { class: "t" }, h("span", {}, p.hero || "Пост"), statusChip(POST_STATUS, p.status)),
+    h("span", { class: "chips" }, segChip(p.segment), p.metrics ? h("span", { class: "chip good" }, `входящих: ${p.metrics.inbound_messages || 0}`) : null, h("span", { class: "chip" }, fmtDate(p.created))),
+    h("span", { class: "s" }, (v || "").split("\n")[0]));
+}
+function vPosts(root) {
+  const filters = [["open", "Ждут решения"], ["approved", "Одобрены"], ["published", "Опубликованы"], ["all", "Все"]];
+  const match = (p) => S.postFilter === "all" || (S.postFilter === "open" ? ["draft", "ready", "needs_fix"].includes(p.status) : p.status === S.postFilter);
+  const list = S.posts.filter(match);
+  const left = h("section", { class: "panel" },
+    h("div", { class: "panel-head" }, h("h2", {}, "Посты"), h("span", { class: "count" }, list.length)),
+    h("div", { class: "filters" }, filters.map(([k, l]) => h("button", { class: "fbtn", "aria-pressed": String(S.postFilter === k), onclick: () => { S.postFilter = k; render(); } }, l))),
+    list.length ? h("div", { class: "list" }, list.map(postRow)) : emptyBox("Здесь пусто", "Посты появляются, когда вы нажимаете «Написать пост» у героя или когда агент готовит их по задаче."));
+  const post = S.posts.find((p) => p.id === S.postId) || list[0];
+  root.append(h("div", { class: "split" }, left, post ? postDetail(post) : h("section", { class: "panel" }, emptyBox("Выберите пост", "Варианты A и B, автопроверки, правка и метрики."))));
+}
+function postDetail(p) {
+  const hero = S.heroes.find((x) => x.id === p.heroId) || {};
+  const panel = h("section", { class: "panel" });
+  panel.append(h("div", { class: "panel-head" },
+    h("div", {}, h("h2", { style: "font-size:18px" }, p.hero), h("div", { class: "note" }, [hero.lens, p.expected_action && "Цель: " + p.expected_action].filter(Boolean).join(" · "))),
+    h("div", { class: "chips" }, segChip(p.segment), statusChip(POST_STATUS, p.status))));
+
+  if (["draft", "ready", "needs_fix"].includes(p.status) && !p.chosen) {
+    const vs = h("div", { class: "variants" });
+    for (const v of ["a", "b"]) {
+      const text = p["variant_" + v]; if (!text) continue;
+      const c = checkPost(text, hero.handle || p.handle, p.hero);
+      vs.append(h("div", { class: "variant" },
+        h("div", { class: "panel-head" }, h("strong", {}, `Вариант ${v.toUpperCase()}`), h("span", { class: "chips" }, h("span", { class: "chip" }, p["hook_type_" + v] || "хук"), h("span", { class: "chip " + (c.passed ? "good" : "bad") }, c.passed ? "проверки пройдены" : `ошибок: ${c.errors.length}`))),
+        h("div", { class: "post-text" }, text),
+        checksList(c),
+        h("div", { class: "actions" }, h("button", { class: "btn primary", disabled: !S.canWrite, onclick: () => save("posts/" + p.id, { chosen: v, final_text: text, updated: nowIso() }) }, `Выбрать ${v.toUpperCase()}`))));
+    }
+    panel.append(vs);
+    if (p.semantic) panel.append(semanticBox(p.semantic));
+  } else {
+    const v = p.chosen || "a";
+    const tid = "edit-" + p.id;
+    const ta = h("textarea", { id: tid, disabled: !S.canWrite || p.status === "published" });
+    ta.value = p.final_text || p["variant_" + v] || "";
+    const live = h("div", {});
+    const cnt = h("span", { class: "count" });
+    const upd = () => { const c = checkPost(ta.value, hero.handle || p.handle, p.hero); live.replaceChildren(checksList(c)); cnt.textContent = `${ta.value.trim().length} знаков`; };
+    ta.addEventListener("input", upd); upd();
+    panel.append(h("div", { class: "panel-head" }, h("label", { for: tid, class: "note" }, `Финальный текст (вариант ${v.toUpperCase()}). Прочитайте вслух и добавьте одну деталь из своего опыта.`), cnt), ta, live);
+    if (p.status !== "published") {
+      const acts = h("div", { class: "actions" },
+        h("button", { class: "btn", disabled: !S.canWrite, onclick: () => save("posts/" + p.id, { final_text: ta.value, updated: nowIso() }).then(() => { clearDraft(tid); toast("Сохранено"); }) }, "Сохранить"),
+        p.status !== "approved" ? h("button", { class: "btn primary", disabled: !S.canWrite, onclick: () => approve(p, ta.value) }, "Одобрить") : null,
+        h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("posts/" + p.id, { chosen: null, status: "ready" }) }, "← К вариантам"),
+        h("button", { class: "btn ghost", onclick: () => copy(ta.value) }, "Копировать текст"));
+      panel.append(acts);
+    }
+  }
+
+  // правка через Claude
+  if (p.status !== "published") panel.append(rewriteBox(p, hero));
+
+  if (p.first_comment) panel.append(h("div", {}, h("div", { class: "note" }, "Первый комментарий (ссылки на источники):"), h("div", { class: "post-text", style: "font-size:13px;color:var(--muted)" }, p.first_comment), h("button", { class: "btn ghost", onclick: () => copy(p.first_comment) }, "Копировать комментарий")));
+
+  if (p.status === "approved") panel.append(publishBox(p));
+  if (p.status === "published") panel.append(h("p", { class: "note" }, "Опубликован ", fmtDate(p.published_at), p.url ? [" · ", h("a", { href: p.url, target: "_blank", rel: "noopener" }, "открыть пост")] : null), metricsBox(p));
+  if ((p.corrections || []).length) panel.append(h("div", {}, h("div", { class: "note" }, "История правок:"), h("ul", { class: "checks" }, p.corrections.map((c) => h("li", { class: "wrn" }, c)))));
+  panel.append(h("div", { class: "actions" }, h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: (e) => confirmBtn(e.target, "Удалить пост?", () => remove("posts/" + p.id).then(() => { S.postId = null; })) }, "Удалить пост")));
+  return panel;
+}
+function checksList(c) {
+  return h("ul", { class: "checks" }, c.errors.map((e) => h("li", { class: "err" }, e)), c.warnings.map((w) => h("li", { class: "wrn" }, w)), c.ok.map((o) => h("li", {}, o)));
+}
+function semanticBox(s) {
+  return h("div", {}, h("div", { class: "note" }, "Смысловая проверка редактора:"), h("ul", { class: "checks" }, Object.entries(s).filter(([k]) => k !== "fixes").map(([k, v]) => h("li", { class: v ? "" : "err" }, ({ facts_grounded: "Факты из карточки", hook_standalone: "Хук без контекста", unique_insight: "Уникальный инсайт", lesson_and_question: "Урок и финальный вопрос", no_irony_at_hero: "Нет иронии над героем", confidentiality: "Конфиденциальность", no_hidden_sale: "Нет скрытой продажи", voice: "Живой голос" })[k] || k)), (s.fixes || []).map((f) => h("li", { class: "wrn" }, f))));
+}
+function confirmBtn(btn, q, fn) {
+  if (btn.dataset.armed) { fn(); return; }
+  btn.dataset.armed = "1"; const old = btn.textContent; btn.textContent = q + " Нажмите ещё раз";
+  setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = old; } }, 3500);
+}
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast("Скопировано"); }
+  catch (e) { toast("Не удалось скопировать — выделите текст вручную"); }
+}
+async function approve(p, text) {
+  const c = checkPost(text, (S.heroes.find((x) => x.id === p.heroId) || {}).handle || p.handle, p.hero);
+  if (!c.passed) { toast("Сначала исправьте ошибки проверки"); return; }
+  await save("posts/" + p.id, { final_text: text, status: "approved", approved_at: nowIso(), hook_type: p["hook_type_" + (p.chosen || "a")] || null });
+  clearDraft("edit-" + p.id);
+  toast("Одобрено. Опубликуйте вручную, ссылки — в первый комментарий");
+}
+function publishBox(p) {
+  const id = "url-" + p.id;
+  const inp = h("input", { type: "url", id, placeholder: "https://www.linkedin.com/posts/…" });
+  return h("div", { class: "panel", style: "background:var(--sunk)" },
+    h("strong", {}, "После публикации"),
+    h("p", { class: "note", style: "margin:0" }, "Опубликуйте вручную. В первый час ответьте на все комментарии лично. Затем вставьте ссылку на пост."),
+    h("label", { class: "f", for: id }, "Ссылка на опубликованный пост"), inp,
+    h("div", { class: "actions" }, h("button", { class: "btn primary", disabled: !S.canWrite, onclick: () => save("posts/" + p.id, { status: "published", url: inp.value.trim() || null, published_at: nowIso() }).then(() => { clearDraft(id); toast("Отмечено. Метрики внесите через 48 часов"); }) }, "Отметить опубликованным")));
+}
+const METRIC_FIELDS = [["inbound_messages", "Входящие и заявки"], ["target_comments", "Комментарии ЛПР"], ["comments_total", "Комментариев всего"], ["saves", "Сохранения"], ["reposts", "Репосты"], ["impressions", "Охват"], ["new_target_followers", "Новые целевые подписчики"]];
+function metricsBox(p) {
+  const m = p.metrics || {};
+  const box = h("div", { class: "panel", style: "background:var(--sunk)" }, h("strong", {}, "Метрики через 48 часов"));
+  const due = p.published_at && (Date.now() - new Date(p.published_at)) < 48 * 36e5;
+  if (due && !p.metrics) box.append(h("p", { class: "note", style: "margin:0" }, "Ещё рано: соберите цифры через 48 часов после публикации."));
+  const grid = h("div", { class: "mgrid" });
+  const inputs = {};
+  for (const [k, l] of METRIC_FIELDS) {
+    const id = `m-${p.id}-${k}`;
+    inputs[k] = h("input", { type: "number", min: "0", id, value: m[k] ?? "" });
+    grid.append(h("label", { class: "f", for: id }, l, inputs[k]));
+  }
+  const hr = h("input", { type: "checkbox", id: `m-${p.id}-hero`, checked: !!m.hero_reacted });
+  const notesId = `m-${p.id}-notes`;
+  const notes = h("textarea", { id: notesId, class: "short", placeholder: "Кто написал, кто из ЛПР комментировал…" }); notes.value = m.notes || "";
+  box.append(grid, h("label", { class: "note", style: "display:flex;gap:6px;align-items:center" }, hr, "Герой отреагировал (репост, комментарий, ответ)"),
+    h("label", { class: "f", for: notesId }, "Заметки"), notes,
+    h("div", { class: "actions" }, h("button", { class: "btn primary", disabled: !S.canWrite, onclick: () => {
+      const out = { hero_reacted: hr.checked, notes: notes.value || null, collected_at: nowIso() };
+      for (const [k] of METRIC_FIELDS) out[k] = Math.max(0, parseInt(inputs[k].value, 10) || 0);
+      save("posts/" + p.id, { metrics: out }).then(() => { clearDraft(...METRIC_FIELDS.map(([k]) => `m-${p.id}-${k}`), notesId); toast("Метрики сохранены"); });
+    } }, "Сохранить метрики")));
+  return box;
+}
+
+// ---------- Claude: написание и правка ----------
+function corrBlock() { return S.corrections.length ? "\n\nПОСТОЯННЫЕ КОРРЕКТИРОВКИ АВТОРА (обязательны):\n" + S.corrections.map((c) => "- " + c.text).join("\n") : ""; }
+function cardFor(x) {
+  const keys = ["hero", "handle", "segment", "role", "one_liner", "facts", "quotes", "different_from_market", "risky_decision", "lens", "insight", "lesson_for_reader", "our_angle", "hero_consent"];
+  const c = Object.fromEntries(keys.filter((k) => x[k] != null).map((k) => [k, x[k]]));
+  if (x.my_notes && x.hero_consent) c.private_notes = x.my_notes;
+  return c;
+}
+const DRAFT_FORMAT = `Верни ТОЛЬКО JSON без пояснений:
+{"status":"OK" | "NEED_MORE_DATA","missing_data":[...],"variant_a":"текст","variant_b":"текст с другим хуком","hook_type_a":"…","hook_type_b":"…","facts_used":["source_url",…],"expected_action":"что должен сделать читатель","first_comment":"Источники: url1, url2"}`;
+
+async function writePost(x) {
+  if (!S.sample) return;
+  const key = "write:" + x.id; S.busy[key] = true; render();
+  try {
+    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nКАРТОЧКА ГЕРОЯ (JSON):\n${JSON.stringify(cardFor(x), null, 1)}\n\n${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
+    if (out?.status === "NEED_MORE_DATA") {
+      await save("heroes/" + x.id, { status: "need_more_data", missing_data: out.missing_data || [] });
+      await queueTask("deepen", `Дособрать факты: ${x.hero} — ${(out.missing_data || []).join("; ")}`, { heroId: x.id }, true);
+      toast("Не хватает фактов — поставил задачу дособрать");
+      return;
+    }
+    const id = new Date().toISOString().slice(0, 10) + "_" + slug(x.hero) + "_" + Math.random().toString(36).slice(2, 6);
+    const passed = ["a", "b"].some((v) => checkPost(out["variant_" + v], x.handle, x.hero).passed);
+    await save("posts/" + id, {
+      heroId: x.id, hero: x.hero, handle: x.handle || "", segment: x.segment, created: nowIso(), status: passed ? "ready" : "needs_fix",
+      variant_a: out.variant_a || "", variant_b: out.variant_b || "", hook_type_a: out.hook_type_a || "", hook_type_b: out.hook_type_b || "",
+      facts_used: out.facts_used || [], expected_action: out.expected_action || "", first_comment: out.first_comment || "", chosen: null, corrections: [], source: "page",
+    }, false);
+    go("posts", { postId: id });
+    toast("Два варианта готовы");
+    semanticCheck(id, x, out);
+  } catch (e) { toast(sampleErr(e)); }
+  finally { delete S.busy[key]; render(); }
+}
+async function semanticCheck(id, x, out) {
+  try {
+    const res = await S.sample.json(`Ты агент-редактор. Проверь вариант A поста по карточке героя. Верни ТОЛЬКО JSON: {"facts_grounded":bool,"hook_standalone":bool,"unique_insight":bool,"lesson_and_question":bool,"no_irony_at_hero":bool,"confidentiality":bool,"no_hidden_sale":bool,"voice":bool,"fixes":["конкретная правка",…]}
+
+facts_grounded — все факты/цифры/цитаты есть в карточке; hook_standalone — хук понятен без контекста; unique_insight — инсайт не подходит к 100 другим компаниям; lesson_and_question — есть урок и финальный вопрос не «да/нет»; no_irony_at_hero; confidentiality — нет непубличных деталей сделок; no_hidden_sale — нет оффера; voice — живой разговорный язык без канцелярита.
+
+КАРТОЧКА:\n${JSON.stringify(cardFor(x))}\n\nПОСТ:\n${out.variant_a}`, { modelTier: "default" });
+    await save("posts/" + id, { semantic: res });
+  } catch (e) { /* смысловая проверка необязательна */ }
+}
+function rewriteBox(p, hero) {
+  const id = "rw-" + p.id;
+  const ta = h("textarea", { id, class: "short", placeholder: "Например: хук слишком общий, начни с цифры 40 номеров; убери иронию; больше про выбор оператора" });
+  const keep = h("input", { type: "checkbox", id: "keep-" + p.id });
+  const busy = S.busy["rw:" + p.id];
+  return h("div", { class: "panel", style: "background:var(--sunk)" },
+    h("label", { class: "f", for: id }, h("strong", { style: "color:var(--ink)" }, "Корректировка для агента"), "Опишите, что поменять — Claude перепишет оба варианта."), ta,
+    h("label", { class: "note", style: "display:flex;gap:6px;align-items:center" }, keep, "Применять это правило ко всем будущим постам"),
+    h("div", { class: "actions" }, h("button", { class: "btn primary", disabled: busy || !S.sample || !S.canWrite, onclick: () => rewrite(p, hero, ta.value, keep.checked) }, busy ? "Переписываю…" : "Переписать")));
+}
+async function rewrite(p, hero, instruction, keep) {
+  instruction = (instruction || "").trim(); if (!instruction) { toast("Опишите, что поменять"); return; }
+  const key = "rw:" + p.id; S.busy[key] = true; render();
+  try {
+    if (keep) await addCorrection(instruction);
+    const current = p.chosen ? `ТЕКУЩИЙ ТЕКСТ:\n${p.final_text}` : `ВАРИАНТ A:\n${p.variant_a}\n\nВАРИАНТ B:\n${p.variant_b}`;
+    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nКАРТОЧКА ГЕРОЯ:\n${JSON.stringify(cardFor(hero.hero ? hero : p))}\n\n${current}\n\nКОРРЕКТИРОВКА ОТ АВТОРА: ${instruction}\n\nПерепиши с учётом корректировки, сохрани все правила. ${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
+    const passed = ["a", "b"].some((v) => checkPost(out["variant_" + v], hero.handle || p.handle, p.hero).passed);
+    await save("posts/" + p.id, {
+      variant_a: out.variant_a || p.variant_a, variant_b: out.variant_b || p.variant_b, hook_type_a: out.hook_type_a || p.hook_type_a, hook_type_b: out.hook_type_b || p.hook_type_b,
+      chosen: null, final_text: null, status: passed ? "ready" : "needs_fix", semantic: null, first_comment: out.first_comment || p.first_comment,
+      corrections: [...(p.corrections || []), instruction], updated: nowIso(),
+    });
+    clearDraft("rw-" + p.id, "edit-" + p.id);
+    toast("Переписано");
+  } catch (e) { toast(sampleErr(e)); }
+  finally { delete S.busy[key]; render(); }
+}
+async function addCorrection(text) {
+  const list = [...S.corrections, { text, created: nowIso() }];
+  await save("settings/guidelines", { corrections: list }, false);
+}
+
+// ---------- Метрики ----------
+function vMetrics(root) {
+  const pub = S.posts.filter((p) => p.status === "published");
+  const withM = pub.filter((p) => p.metrics);
+  if (!withM.length) {
+    root.append(h("section", { class: "panel" }, h("h2", {}, "Метрики"), emptyBox("Метрик пока нет", "Через 48 часов после публикации откройте пост и внесите цифры. Главная метрика — входящие сообщения и заявки.")));
+    root.append(balancePanel());
+    return;
+  }
+  const sum = (k) => withM.reduce((a, p) => a + (+p.metrics[k] || 0), 0);
+  root.append(h("div", { class: "kpis" },
+    kpi("Входящие и заявки", sum("inbound_messages"), "главная метрика", true),
+    kpi("Реакция героев", Math.round(100 * withM.filter((p) => p.metrics.hero_reacted).length / withM.length) + "%", "ориентир: от 30%"),
+    kpi("Комментарии ЛПР", sum("target_comments"), `из ${sum("comments_total")} всего`),
+    kpi("Сохранения и репосты", sum("saves") + sum("reposts"), "польза и экспертность"),
+    kpi("Охват", sum("impressions").toLocaleString("ru-RU"), "вторично"),
+  ));
+  const g = h("div", { class: "grid2" });
+  g.append(h("section", { class: "panel" }, h("h2", {}, "Входящие по постам"), barChart(withM.slice().reverse().map((p) => ({ label: p.hero, value: +p.metrics.inbound_messages || 0 })))));
+  g.append(h("section", { class: "panel" }, h("h2", {}, "Что работает: среднее входящих"), groupTable(withM)));
+  root.append(g);
+  const tw = h("div", { class: "tablewrap" }, h("table", {},
+    h("thead", {}, h("tr", {}, h("th", {}, "Пост"), h("th", {}, "Сегмент"), h("th", {}, "Хук"), ...METRIC_FIELDS.map(([, l]) => h("th", { class: "n" }, l)), h("th", {}, "Герой"))),
+    h("tbody", {}, withM.map((p) => h("tr", {}, h("td", {}, h("a", { href: "#", onclick: (e) => { e.preventDefault(); go("posts", { postId: p.id, postFilter: "published" }); } }, p.hero)), h("td", {}, SEG[p.segment]?.label || ""), h("td", {}, p.hook_type || "—"), ...METRIC_FIELDS.map(([k]) => h("td", { class: "n" }, (+p.metrics[k] || 0).toLocaleString("ru-RU"))), h("td", {}, p.metrics.hero_reacted ? "да" : "нет"))))));
+  root.append(h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Все опубликованные"), h("button", { class: "btn", disabled: !S.sample, onclick: () => askAbout("Проанализируй метрики опубликованных постов: какие хуки, линзы, темы и сегменты дали больше входящих и реакций героев? Что усилить, что убрать? Предложи корректировки для автора и разведчика.") }, "Разобрать с Claude")), tw));
+  root.append(balancePanel());
+}
+function barChart(items) {
+  const W = 560, rowH = 26, pad = 150, H = items.length * rowH + 24;
+  const max = Math.max(1, ...items.map((i) => i.value));
+  const ticks = niceTicks(max);
+  const scale = (v) => pad + (W - pad - 30) * v / ticks[ticks.length - 1];
+  const svg = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Входящие по постам">
+    ${ticks.map((t) => `<line x1="${scale(t)}" x2="${scale(t)}" y1="0" y2="${H - 18}" stroke="var(--line)" stroke-width="1"/><text x="${scale(t)}" y="${H - 4}" text-anchor="middle">${t}</text>`).join("")}
+    ${items.map((it, i) => `<text x="${pad - 8}" y="${i * rowH + 17}" text-anchor="end">${esc(it.label.length > 22 ? it.label.slice(0, 21) + "…" : it.label)}</text>
+      <rect x="${pad}" y="${i * rowH + 6}" width="${Math.max(2, scale(it.value) - pad)}" height="14" rx="3" fill="var(--accent)"/>
+      <text x="${scale(it.value) + 6}" y="${i * rowH + 17}" style="fill:var(--ink)">${it.value}</text>`).join("")}
+  </svg>`;
+  return h("div", { html: svg });
+}
+function niceTicks(max) { const step = max <= 5 ? 1 : max <= 10 ? 2 : max <= 25 ? 5 : Math.ceil(max / 5 / 5) * 5; const out = []; for (let t = 0; t <= max + step - 1; t += step) out.push(t); if (out[out.length - 1] < max) out.push(out[out.length - 1] + step); return out; }
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+function groupTable(posts) {
+  const groups = [["Сегмент", (p) => SEG[p.segment]?.label || "—"], ["Тип хука", (p) => p.hook_type || "—"], ["Линза", (p) => (S.heroes.find((x) => x.id === p.heroId) || {}).lens || "—"]];
+  const rows = [];
+  for (const [g, fn] of groups) {
+    const m = {};
+    for (const p of posts) { const k = fn(p); (m[k] ||= []).push(+p.metrics.inbound_messages || 0); }
+    for (const [k, arr] of Object.entries(m)) rows.push([g, k, arr.length, arr.reduce((a, b) => a + b, 0) / arr.length]);
+  }
+  return h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Разрез"), h("th", {}, "Значение"), h("th", { class: "n" }, "Постов"), h("th", { class: "n" }, "Входящих в ср."))),
+    h("tbody", {}, rows.map((r) => h("tr", {}, h("td", {}, r[0]), h("td", { style: "white-space:normal" }, r[1]), h("td", { class: "n" }, r[2]), h("td", { class: "n" }, r[3].toFixed(1)))))));
+}
+
+// ---------- Агент ----------
+function taskRow(t) {
+  return h("div", { class: "task" },
+    h("span", { class: "tt" }, t.text),
+    h("span", { class: "chips" }, h("span", { class: "chip " + (t.status === "done" ? "good" : "warn") }, t.status === "done" ? "выполнено" : "в очереди"), h("span", { class: "chip" }, fmtDate(t.created))),
+    t.result ? h("div", { class: "res" }, t.result) : null);
+}
+async function queueTask(type, text, extra = {}, silent) {
+  const id = new Date().toISOString().replace(/[:.]/g, "-") + "_" + Math.random().toString(36).slice(2, 5);
+  await save("tasks/" + id, { type, text, status: "queued", created: nowIso(), ...extra }, false);
+  if (!silent) toast("Задача поставлена. Напишите в чате Claude: «выполни задачи из дашборда»");
+}
+function vAgent(root) {
+  const g = h("div", { class: "grid2" });
+  // чат
+  const chatBox = h("div", { class: "chat", id: "chatlog" });
+  if (!S.chat.length) chatBox.append(h("div", { class: "msg sys" }, "Спросите что угодно о героях, постах и метриках. Агент может поставить задачу на поиск, добавить корректировку или подготовить пост."));
+  for (const m of S.chat) chatBox.append(h("div", { class: "msg " + m.role }, m.content || h("span", { class: "thinking" }, "Думаю…")));
+  const inp = h("textarea", { id: "chat-in", placeholder: S.sample ? "Например: кого из инвесторов взять следующим?" : "Чат работает при открытии в Claude", disabled: !S.sample || S.busy.chat });
+  inp.value = S.chatDraft || "";
+  inp.addEventListener("input", () => (S.chatDraft = inp.value));
+  inp.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } });
+  const sugg = ["Кого из героев взять следующим и почему?", "Какой сегмент недобран в этом месяце?", "Найди 5 новых героев: family offices, купившие отели в горах", "Сделай хук для последнего поста сильнее"];
+  g.append(h("section", { class: "panel" },
+    h("div", { class: "panel-head" }, h("h2", {}, "Разговор с агентом"), S.chat.length ? h("button", { class: "btn ghost", onclick: () => { S.chat = []; render(); } }, "Очистить") : null),
+    chatBox,
+    h("div", { class: "suggest" }, sugg.map((s) => h("button", { class: "fbtn", disabled: !S.sample || S.busy.chat, onclick: () => { S.chatDraft = s; sendChat(); } }, s))),
+    h("div", { class: "composer" }, inp, S.busy.chat ? h("button", { class: "btn", onclick: () => S.chatCtl?.abort() }, "Стоп") : h("button", { class: "btn primary", disabled: !S.sample, onclick: sendChat }, "Отправить"))));
+  requestAnimationFrame(() => { const c = $("#chatlog"); if (c) c.scrollTop = c.scrollHeight; });
+
+  // задачи
+  const right = h("div", { class: "view" });
+  const tsel = h("select", { id: "task-type" }, Object.entries(TASK_TYPES).map(([k, l]) => h("option", { value: k }, l)));
+  const ttext = h("textarea", { id: "task-text", class: "short", placeholder: "Например: найти 5 героев из экосистемы — архитекторов люксовых отелей с проектами за последние 60 дней" });
+  const queued = S.tasks.filter((t) => t.status === "queued"), done = S.tasks.filter((t) => t.status !== "queued");
+  right.append(h("section", { class: "panel" },
+    h("h2", {}, "Задачи на поиск в интернете"),
+    h("p", { class: "note", style: "margin:0" }, "Поиск и исследование с веб-поиском выполняет Claude в чате. Поставьте задачу и напишите там: «выполни задачи из дашборда»."),
+    h("label", { class: "f", for: "task-type" }, "Тип"), tsel,
+    h("label", { class: "f", for: "task-text" }, "Что сделать"), ttext,
+    h("div", { class: "actions" }, h("button", { class: "btn primary", disabled: !S.canWrite || !S.db, onclick: () => { const t = ttext.value.trim() || TASK_TYPES[tsel.value]; queueTask(tsel.value, t).then(() => clearDraft("task-text")); ttext.value = ""; } }, "Поставить задачу")),
+    queued.length ? h("div", {}, queued.map(taskRow)) : h("p", { class: "note" }, "Очередь пуста."),
+    done.length ? h("details", {}, h("summary", { class: "note" }, `Выполненные (${done.length})`), done.slice(0, 20).map(taskRow)) : null));
+
+  // корректировки
+  const cin = h("textarea", { id: "corr-in", class: "short", placeholder: "Например: не использовать слово «актив» чаще двух раз; писать от женского лица; больше цифр ADR" });
+  right.append(h("section", { class: "panel" },
+    h("h2", {}, "Постоянные корректировки"),
+    h("p", { class: "note", style: "margin:0" }, "Правила, которые агент применяет к каждому новому посту — и на странице, и в чате."),
+    S.corrections.length ? h("div", {}, S.corrections.map((c, i) => h("div", { class: "corr" }, h("span", {}, c.text), h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: () => save("settings/guidelines", { corrections: S.corrections.filter((_, j) => j !== i) }, false) }, "Убрать")))) : h("p", { class: "note" }, "Пока нет корректировок."),
+    h("label", { class: "f", for: "corr-in" }, "Новое правило"), cin,
+    h("div", { class: "actions" }, h("button", { class: "btn", disabled: !S.canWrite || !S.db, onclick: () => { const t = cin.value.trim(); if (t) addCorrection(t).then(() => { clearDraft("corr-in"); toast("Правило добавлено"); }); } }, "Добавить правило"))));
+  g.append(right);
+  root.append(g);
+}
+function askAbout(q) { S.chatDraft = q; go("agent"); sendChat(); }
+
+function dataSummary() {
+  return JSON.stringify({
+    today: new Date().toISOString().slice(0, 10),
+    heroes: S.heroes.map((x) => ({ id: x.id, hero: x.hero, company: x.company, segment: x.segment, status: x.status, score: x.total ?? total(x.scores), occasion: x.occasion, lens: x.lens, insight: x.insight, facts: (x.facts || []).length })),
+    posts: S.posts.map((p) => ({ id: p.id, hero: p.hero, segment: p.segment, status: p.status, hook: p.hook_type, created: p.created, first_line: (p.final_text || p.variant_a || "").split("\n")[0], metrics: p.metrics || null })),
+    queued_tasks: S.tasks.filter((t) => t.status === "queued").map((t) => t.text),
+    corrections: S.corrections.map((c) => c.text),
+  });
+}
+const CHAT_RULES = `Ты агент контент-конвейера Заиры — эксперта по сделкам с люксовыми и ультра-люксовыми отелями. Конвейер: разведчик (ищет героев, скоринг 0–5 по 6 критериям, берём от 20/30), исследователь (факты со ссылками), аналитик (линза и инсайт, тест на уникальность), автор (2 варианта поста), редактор (проверки), человек (одобряет). Баланс в месяц: 35% продающая сторона, 35% покупающая, 30% экосистема. Одного героя не чаще раза в 3 месяца. Ритм 3–4 поста в неделю. Главная метрика — входящие сообщения.
+
+Отвечай по-русски, коротко и по делу, опираясь на данные дашборда ниже. Ты НЕ можешь искать в интернете: если нужен поиск или исследование — вызови инструмент queue_task и скажи, что задача поставлена и её выполнит Claude в чате по команде «выполни задачи из дашборда». Если пользователь даёт правило для всех будущих постов — вызови add_correction. Если просит написать пост о герое — вызови write_post. Не выдумывай факты о героях.`;
+async function sendChat() {
+  const text = (S.chatDraft || "").trim();
+  if (!text || !S.sample || S.busy.chat) return;
+  S.chatDraft = ""; S.chat.push({ role: "me", content: text }); const ai = { role: "ai", content: "" }; S.chat.push(ai);
+  S.busy.chat = true; S.chatCtl = new AbortController(); render();
+  const turns = [{ role: "user", content: CHAT_RULES + "\n\nДАННЫЕ ДАШБОРДА:\n" + dataSummary() }, { role: "assistant", content: "Понял, данные и правила у меня. Слушаю." }];
+  for (const m of S.chat.slice(0, -1)) if (m.role === "me" || (m.role === "ai" && m.content)) turns.push({ role: m.role === "me" ? "user" : "assistant", content: m.content });
+  const tools = [
+    { name: "queue_task", description: "Поставить задачу на поиск/исследование в интернете (выполнит Claude в чате).", inputSchema: { type: "object", properties: { type: { type: "string", enum: Object.keys(TASK_TYPES) }, text: { type: "string" }, heroId: { type: "string" } }, required: ["type", "text"] },
+      execute: async (i) => { await queueTask(i.type, i.text, i.heroId ? { heroId: i.heroId } : {}, true); return { ok: true }; } },
+    { name: "add_correction", description: "Добавить постоянное правило для всех будущих постов.", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
+      execute: async (i) => { await addCorrection(i.text); return { ok: true }; } },
+    { name: "write_post", description: "Написать 2 варианта поста о герое по его карточке (id героя из данных).", inputSchema: { type: "object", properties: { heroId: { type: "string" } }, required: ["heroId"] },
+      execute: async (i) => { const x = S.heroes.find((y) => y.id === i.heroId); if (!x) throw new Error("Нет такого героя"); if (!(x.facts || []).length) throw new Error("У героя нет фактов — сначала исследование"); writePost(x); return { started: true }; } },
+    { name: "get_hero", description: "Полная карточка героя: факты, цитаты, анализ.", inputSchema: { type: "object", properties: { heroId: { type: "string" } }, required: ["heroId"] },
+      execute: async (i) => cardFor(S.heroes.find((y) => y.id === i.heroId) || {}) },
+  ];
+  try {
+    const { text: answer } = await S.sample(turns, { tools, cache: false, signal: S.chatCtl.signal, onText: ({ text }) => { ai.content = text; const log = $("#chatlog"); if (log?.lastChild) { log.lastChild.textContent = text; log.scrollTop = log.scrollHeight; } } });
+    ai.content = answer;
+  } catch (e) {
+    ai.content = e?.text || ""; S.chat.push({ role: "sys", content: sampleErr(e) });
+  } finally { S.busy.chat = false; if (!ai.content) S.chat.splice(S.chat.indexOf(ai), 1); render(); }
+}
+
+// ---------- старт ----------
+render();
+(async () => {
+  const c = window.claude;
+  if (!c?.use) { S.dbChecked = S.sampleChecked = true; render(); return; }
+  const [db, sample, user] = await Promise.all([c.use("db"), c.use("sample"), c.use("user")]);
+  S.db = db; S.sample = sample; S.dbChecked = S.sampleChecked = true;
+  if (user?.can) { try { const w = await user.can("data.write"); if (w === false) S.canWrite = false; } catch (e) {} }
+  if (db) subscribe();
+  render();
+})();
+})();
+</script>
