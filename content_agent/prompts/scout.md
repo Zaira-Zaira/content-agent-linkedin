@@ -27,4 +27,4 @@
 Найди {n} кандидатов. Нужный баланс сегментов в этой партии: {segment_need}.
 
 
-LANGUAGE: write occasion and why in English.
+ЯЗЫК: повод (occasion) и обоснование (why) пиши на русском.

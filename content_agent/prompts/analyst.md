@@ -20,4 +20,4 @@
 Заполни: different_from_market, risky_decision, lens, insight (наше наблюдение одной фразой), lesson_for_reader, our_angle (как это связано с экспертизой автора в цене и сделках с отельными активами).
 
 
-LANGUAGE: fill every field (different_from_market, risky_decision, lens, insight, lesson_for_reader, our_angle, uniqueness_reasoning, missing_data) in English.
+ЯЗЫК: все поля анализа заполняй на русском. Посты потом пишутся на английском — это делает агент-автор.

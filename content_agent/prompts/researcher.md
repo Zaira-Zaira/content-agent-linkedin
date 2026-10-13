@@ -19,4 +19,4 @@
 Выведи подробный конспект: список фактов (факт — цифра — дата — URL), список цитат (текст — URL), наблюдения о необычных решениях.
 
 
-LANGUAGE: write the notes in English. Translate facts from non-English sources accurately, keep numbers exactly as in the source; quotes stay verbatim in the original language.
+ЯЗЫК: конспект и факты пиши на русском. Факты из иноязычных источников переводи точно, цифры — ровно как в источнике; цитаты оставляй дословно на языке оригинала.

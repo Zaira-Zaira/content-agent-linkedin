@@ -6,7 +6,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 Segment = Literal["sell_side", "buy_side", "ecosystem"]
-Role = Literal["client", "partner", "network"]
+Role = Literal["клиент", "партнёр", "нетворк"]
 
 
 # --- Этап 1. Разведчик ---------------------------------------------------------
