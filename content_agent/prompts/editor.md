@@ -10,3 +10,6 @@
 8. voice: живой разговорный язык, первое лицо, без канцелярита и машинных оборотов, есть одна честная оговорка.
 
 Для каждого варианта дай вердикт по каждому пункту и конкретные правки (что именно переписать).
+
+
+The posts are in English: judge the English text (natural conversational English, no corporate clichés). Write fixes in Russian for the author.

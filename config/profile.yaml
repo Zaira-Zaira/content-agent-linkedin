@@ -1,4 +1,4 @@
-# Профиль автора и правила системы. Обновлять раз в квартал (портреты, темы, стоп-лист).
+# Профиль автора и правила системы. Посты и анализ — на английском. Обновлять раз в квартал (портреты, темы, стоп-лист).
 author:
   name: "Zaira"            # подставляется в промпт агента-автора вместо [ИМЯ]
   niche: >-
@@ -89,13 +89,13 @@ niche_lenses:
   - "Конверсия: как старое здание или участок превратились в люксовый продукт"
   - "Резиденции и смешанное использование: как branded residences финансируют проект"
 
-hook_examples:
-  - "Отель на 40 номеров стоит дороже соседнего на 200. И дело не в локации."
-  - "Этот family office уже третий раз покупает отель в горах. Я, кажется, понял их тезис."
-  - "Архитектор убрал из проекта лобби. Владелец сначала был в ужасе, теперь это главная фишка отеля."
-  - "Все бренды хотели этот актив. Владелец выбрал остаться независимым. Посчитала, почему это было правильно."
-  - "Самая дорогая деталь этого отеля не в номерах, а в том, чего гость никогда не увидит."
-  - "Инвесторы спрашивают меня о доходности. Покупают в итоге историю. Вот пример."
+hook_examples:   # посты пишутся на английском
+  - "A 40-room hotel is worth more than the 200-room one next door. And it's not the location."
+  - "This family office just bought its third mountain hotel. I think I finally get their thesis."
+  - "The architect cut the lobby. The owner was horrified. Now it's the hotel's signature."
+  - "Every brand wanted this asset. The owner stayed independent. I ran the numbers on why that was right."
+  - "The most expensive detail in this hotel isn't in the rooms. It's what guests never see."
+  - "Investors ask me about yield. In the end they buy a story. Here's an example."
 
 # Стоп-лист героев и тем: конкуренты, токсичные темы, компании, о которых не пишем
 stoplist:

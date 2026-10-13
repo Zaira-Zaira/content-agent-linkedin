@@ -8,3 +8,6 @@
 - do_less: слабые приёмы, которые стоит убрать;
 - scout_adjustments: как поменять отбор героев;
 - summary: короткий отчёт для человека.
+
+
+Posts are in English. Write best_examples in English and the other fields in Russian for the author.

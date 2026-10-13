@@ -18,3 +18,6 @@
 ТЕСТ НА УНИКАЛЬНОСТЬ: если инсайт подходит к 100 другим компаниям («сильная команда», «фокус на клиенте», «премиальный сервис»), он отклоняется — поставь passes_uniqueness = false и опиши в missing_data, каких фактов не хватает для сильного инсайта.
 
 Заполни: different_from_market, risky_decision, lens, insight (наше наблюдение одной фразой), lesson_for_reader, our_angle (как это связано с экспертизой автора в цене и сделках с отельными активами).
+
+
+LANGUAGE: fill every field (different_from_market, risky_decision, lens, insight, lesson_for_reader, our_angle, uniqueness_reasoning, missing_data) in English.

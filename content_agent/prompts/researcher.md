@@ -17,3 +17,6 @@
 - Ищи особенно: что герой делает не так, как рынок; неочевидные или рискованные решения; от чего отказались; что сделали первым; цену решения.
 
 Выведи подробный конспект: список фактов (факт — цифра — дата — URL), список цитат (текст — URL), наблюдения о необычных решениях.
+
+
+LANGUAGE: write the notes in English. Translate facts from non-English sources accurately, keep numbers exactly as in the source; quotes stay verbatim in the original language.

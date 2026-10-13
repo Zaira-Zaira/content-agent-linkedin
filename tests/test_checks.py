@@ -63,3 +63,35 @@ def test_facts_used_must_come_from_card():
     card = {"facts": [{"source_url": "https://x"}], "quotes": []}
     assert check_facts_used(["https://x"], card).ok
     assert not check_facts_used(["https://made-up"], card).ok
+
+
+GOOD_EN = """€610k per key. That's what a luxury hotel in central Barcelona just sold for, according to the press.
+
+@kaya bought ME Barcelona: 164 rooms, around €100M. Their first deal in Spain.
+
+What caught my eye wasn't the price. It was the order of moves.
+
+The hotel stays under ME by Meliá. Kaya plans to switch it to its own Kaya Palazzo brand from 2028.
+
+So the buyer takes an asset with a working brand and guest base, and adds its own brand later.
+
+My read: the outgoing brand works as a bridge. It holds occupancy while the new owner prepares the switch.
+
+This won't work everywhere. But for a hotel that only opened in 2021, the logic holds.
+
+Lesson for owners: a contract with a strong operator can be a selling point, not a burden.
+
+When you buy, do you see an existing management contract as an asset or as the price of exit?
+
+#hospitality #hotelinvestment #luxuryhotels #barcelona"""
+
+
+def test_english_post_passes():
+    r = check_post(GOOD_EN, hero="Kaya", handle="@kaya", keywords=KEYWORDS)
+    assert r.ok, r.errors
+
+
+def test_english_stop_list():
+    bad = GOOD_EN.replace("My read:", "In today's world, a true game-changer:")
+    r = check_post(bad, hero="Kaya", handle="@kaya", keywords=KEYWORDS)
+    assert any("стоп-листа" in e for e in r.errors)

@@ -5,6 +5,12 @@ import re
 from dataclasses import dataclass, field
 
 BANNED_PHRASES = [
+    # English
+    "in today's world", "it's no secret", "plays a key role", "unique opportunity", "worth noting",
+    "it's important to understand", "let's dive", "deep dive", "dive into", "in conclusion", "innovative",
+    "game-changer", "game changer", "synergy", "next level", "inspiring", "true professionals", "dream team",
+    "hi everyone", "today i want to share", "genius", "incredible", "the best",
+    # Русские
     "в современном мире", "не секрет", "играет ключевую роль", "уникальная возможность",
     "стоит отметить", "важно понимать", "в заключение", "давайте разберёмся", "давайте разберемся",
     "погрузимся", "инновационн", "эффективные решения", "на новый уровень", "новый уровень",
@@ -15,6 +21,7 @@ BANNED_PHRASES = [
 ]
 
 FORBIDDEN_STARTS = [
+    "today i want to share", "hi everyone", "hello everyone", "in today's world", "it's no secret",
     "сегодня хочу рассказать", "друзья, всем привет", "друзья", "в современном мире", "не секрет",
 ]
 
@@ -111,7 +118,8 @@ def check_post(text: str, *, hero: str, handle: str, keywords: list[str]) -> Che
 
     # Финальный вопрос / приглашение
     tail = "\n".join(l for l in body.splitlines() if l.strip() and not l.strip().startswith("#"))[-300:]
-    if "?" not in tail and "пишите" not in tail.lower() and "в личк" not in tail.lower():
+    invite = re.search(r"пишите|в личк|\b(dm|message me|drop me|reach out|let's talk)\b", tail.lower())
+    if "?" not in tail and not invite:
         r.warnings.append("Нет финального вопроса или приглашения в диалог")
 
     return r

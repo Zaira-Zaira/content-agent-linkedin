@@ -205,23 +205,23 @@ const POST_STATUS = {
 const HERO_STATUS = { candidate: ["Кандидат", ""], researched: ["Исследован", "good"], rejected: ["Отклонён", "bad"], need_more_data: ["Мало фактов", "warn"] };
 const SCORE_LABELS = { fit: "Попадание в цель", fresh: "Свежий повод", unique: "Уникальность", reader_value: "Польза читателю", reaction: "Реакция героя", topic_link: "Связь с темами" };
 const KEYWORDS = ["luxury hotel","ultra-luxury","hospitality investment","hotel transaction","hotel m&a","отел","инвестиции в отели","продажа отеля","family office","private equity","branded residences","revpar","adr","cap rate","resort","boutique hotel","design hotel","real estate"];
-const BANNED = ["в современном мире","не секрет","играет ключевую роль","уникальная возможность","стоит отметить","важно понимать","в заключение","давайте разберёмся","давайте разберемся","погрузимся","инновационн","эффективные решения","новый уровень","синерги","вдохновляет","настоящие профессионалы","команда мечты","друзья, всем привет","сегодня хочу рассказать","гениальн","невероятн","лучший","лучшая","лучшее"];
-const FORBIDDEN_STARTS = ["сегодня хочу рассказать","друзья","в современном мире","не секрет"];
+const BANNED = ["in today's world","it's no secret","plays a key role","unique opportunity","worth noting","it's important to understand","let's dive","deep dive","dive into","in conclusion","innovative","game-changer","game changer","synergy","next level","inspiring","true professionals","dream team","hi everyone","today i want to share","genius","incredible","the best","в современном мире","не секрет","играет ключевую роль","уникальная возможность","стоит отметить","важно понимать","в заключение","давайте разберёмся","давайте разберемся","погрузимся","инновационн","эффективные решения","новый уровень","синерги","вдохновляет","настоящие профессионалы","команда мечты","друзья, всем привет","сегодня хочу рассказать","гениальн","невероятн","лучший","лучшая","лучшее"];
+const FORBIDDEN_STARTS = ["today i want to share","hi everyone","hello everyone","in today's world","it's no secret","сегодня хочу рассказать","друзья","в современном мире","не секрет"];
 const TASK_TYPES = { scout: "Найти новых героев", research: "Исследовать героя", deepen: "Дособрать факты", other: "Другое" };
 
-const AUTHOR_RULES = `Ты пишешь посты от имени Заиры, эксперта по покупке и продаже люксовых и ультра-люксовых отелей с уникальной концепцией и дизайном. Ты не копирайтер и не нейросеть: ты практик, который глубоко разобрал чужую компанию и делится наблюдением с умными коллегами.
+const AUTHOR_RULES = `You write LinkedIn posts IN ENGLISH on behalf of Zaira, an expert in buying and selling luxury and ultra-luxury hotels with a unique concept and strong design. You are not a copywriter and not an AI: you are a practitioner who has taken someone else's company apart and is sharing an observation with smart peers.
 
-ЦЕЛЬ: нужные люди (сегмент героя) замечают автора, получают пользу, видят в нём эксперта и сами хотят написать. Герой чувствует, что его работу поняли глубже других.
+GOAL: the right people (the hero's segment) notice the author, get real value, see her as the expert and want to write to her themselves. The hero feels their work was understood more deeply than anyone else understood it.
 
-ВХОД: карточка героя. Используй ТОЛЬКО факты, цифры и цитаты из карточки. Ничего не придумывай. Если для сильного поста не хватает фактов — status NEED_MORE_DATA и список, чего не хватает.
+INPUT: the hero card. Use ONLY the facts, numbers and quotes in the card. Invent nothing. If there are not enough facts for a strong post, return status NEED_MORE_DATA and a list of what is missing.
 
-СТРУКТУРА: 1) Хук 1–2 строки, понятен без контекста и без названия компании (неожиданная цифра, противоречие, вопрос, признание, наблюдение-интрига, контраст «все vs они», конкретная сцена, ироничная правда). 2) Факт: что сделал герой, с отметкой @handle и цифрой. 3) Разбор: наше наблюдение (insight), 3–6 коротких строк. 4) Урок для читателя. 5) Финал: вопрос для развёрнутых комментариев или мягкое приглашение в диалог. Без продажи.
+STRUCTURE: 1) Hook, 1–2 lines, works without context and without the company name (unexpected number, contradiction, question, confession, intriguing observation, "everyone vs them" contrast, concrete scene, ironic truth). 2) Fact: what the hero did, with @handle and a number. 3) Breakdown: our observation (insight), 3–6 short lines. 4) Lesson the reader can apply. 5) Close: a question that invites thoughtful comments, or a soft invitation to talk. No selling.
 
-ТОН: живой разговорный язык, первое лицо (женский род), короткие предложения, можно начинать с «И» и «Но». Одна честная оговорка. Одна ироничная фраза максимум — над ситуацией, рынком или собой, никогда над героем. Хвали через анализ, не оценками.
+TONE: lively, conversational English, first person, short sentences; starting with "And" or "But" is fine. Plain words, no corporate jargon. One honest caveat ("this won't work for everyone", "my read is…"). At most one ironic line — about the situation, the market or yourself, never the hero; no humour around layoffs, losses or crises. Praise decisions through analysis, not adjectives.
 
-СТОП-ЛИСТ: «в современном мире», «не секрет», «играет ключевую роль», «уникальная возможность», «стоит отметить», «важно понимать», «давайте разберёмся», «погрузимся», «в заключение», «инновационный», «синергия», «новый уровень», «вдохновляет», «настоящие профессионалы», «гениально», «невероятно», «лучший», «друзья, всем привет», «сегодня хочу рассказать». Не более одного «!», не более 3 эмодзи.
+STOP LIST: "in today's world", "it's no secret", "plays a key role", "unique opportunity", "it's worth noting", "it's important to understand", "let's dive in", "deep dive", "in conclusion", "innovative", "game-changer", "synergy", "next level", "inspiring", "true professionals", "dream team", "hi everyone", "today I want to share", "genius", "incredible", "the best". No more than one "!", no more than 3 emoji, no triple lists in a row.
 
-ФОРМАТ: 600–1300 знаков, максимум 1800. Абзацы 1–3 строки, пустая строка между ними. Ключевая цифра на отдельной строке. В первых двух строках одна цифра и одно ключевое слово (luxury hotel, hospitality investment, hotel transaction, отели, инвестиции в отели, family office, private equity, branded residences, RevPAR, ADR, cap rate, resort, boutique hotel, design hotel). Подсвечивай, как концепция, дизайн, локация и выбор оператора создают стоимость актива. Никаких непубличных деталей сделок; свой опыт обезличенно. В конце 3–5 хэштегов. Отметки: герой обязательно, всего не больше 3. Цитаты дословно, до 15 слов. Ссылок в тексте нет — они идут в первый комментарий.`;
+FORMAT: 600–1300 characters, 1800 max. Paragraphs of 1–3 lines with a blank line between them; one idea per paragraph. The key number on its own line. The first two lines contain one number and one keyword (luxury hotel, ultra-luxury, hospitality investment, hotel transaction, hotel M&A, family office, private equity, branded residences, RevPAR, ADR, cap rate, resort, boutique hotel, design hotel, real estate). Show how concept, design, location and operator choice create asset value. Never reveal non-public deal details, prices or parties; describe own experience anonymously ("one of my clients", "a coastal asset"). End with 3–5 hashtags (1–2 broad, 2–3 niche). Tag the hero; no more than 3 tags in total. Quotes verbatim from the card, max 15 words. No links in the post — they go in the first comment. Card facts may be in another language: translate them accurately, never change the numbers.`;
 
 // ---------- состояние ----------
 const S = {
@@ -291,7 +291,7 @@ function checkPost(text, handle, hero) {
   (tags.length >= 3 && tags.length <= 5) ? ok.push(`Хэштегов: ${tags.length}`) : errors.push(`Хэштегов: ${tags.length}, нужно 3–5`);
   if (/https?:\/\/|www\./.test(body)) errors.push("Ссылка в тексте — перенесите в первый комментарий");
   const tail = body.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#")).join("\n").slice(-300).toLowerCase();
-  (tail.includes("?") || tail.includes("пишите") || tail.includes("в личк")) ? ok.push("Есть финальный вопрос") : warnings.push("Нет финального вопроса");
+  (tail.includes("?") || tail.includes("пишите") || tail.includes("в личк") || /\b(dm|message me|drop me|reach out|let's talk)\b/.test(tail)) ? ok.push("Есть финальный вопрос") : warnings.push("Нет финального вопроса");
   return { errors, warnings, ok, passed: errors.length === 0 };
 }
 
@@ -615,21 +615,21 @@ function metricsBox(p) {
 }
 
 // ---------- Claude: написание и правка ----------
-function corrBlock() { return S.corrections.length ? "\n\nПОСТОЯННЫЕ КОРРЕКТИРОВКИ АВТОРА (обязательны):\n" + S.corrections.map((c) => "- " + c.text).join("\n") : ""; }
+function corrBlock() { return S.corrections.length ? "\n\nSTANDING CORRECTIONS FROM THE AUTHOR (mandatory; may be written in Russian):\n" + S.corrections.map((c) => "- " + c.text).join("\n") : ""; }
 function cardFor(x) {
   const keys = ["hero", "handle", "segment", "role", "one_liner", "facts", "quotes", "different_from_market", "risky_decision", "lens", "insight", "lesson_for_reader", "our_angle", "hero_consent"];
   const c = Object.fromEntries(keys.filter((k) => x[k] != null).map((k) => [k, x[k]]));
   if (x.my_notes && x.hero_consent) c.private_notes = x.my_notes;
   return c;
 }
-const DRAFT_FORMAT = `Верни ТОЛЬКО JSON без пояснений:
-{"status":"OK" | "NEED_MORE_DATA","missing_data":[...],"variant_a":"текст","variant_b":"текст с другим хуком","hook_type_a":"…","hook_type_b":"…","facts_used":["source_url",…],"expected_action":"что должен сделать читатель","first_comment":"Источники: url1, url2"}`;
+const DRAFT_FORMAT = `All post texts, hook types, expected_action and first_comment in ENGLISH. Return ONLY JSON, no commentary:
+{"status":"OK" | "NEED_MORE_DATA","missing_data":[...],"variant_a":"post text","variant_b":"post text with a different hook","hook_type_a":"…","hook_type_b":"…","facts_used":["source_url",…],"expected_action":"what the reader should do","first_comment":"Sources: url1, url2"}`;
 
 async function writePost(x) {
   if (!S.sample) return;
   const key = "write:" + x.id; S.busy[key] = true; render();
   try {
-    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nКАРТОЧКА ГЕРОЯ (JSON):\n${JSON.stringify(cardFor(x), null, 1)}\n\n${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
+    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nHERO CARD (JSON):\n${JSON.stringify(cardFor(x), null, 1)}\n\n${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
     if (out?.status === "NEED_MORE_DATA") {
       await save("heroes/" + x.id, { status: "need_more_data", missing_data: out.missing_data || [] });
       await queueTask("deepen", `Дособрать факты: ${x.hero} — ${(out.missing_data || []).join("; ")}`, { heroId: x.id }, true);
@@ -651,7 +651,9 @@ async function writePost(x) {
 }
 async function semanticCheck(id, x, out) {
   try {
-    const res = await S.sample.json(`Ты агент-редактор. Проверь вариант A поста по карточке героя. Верни ТОЛЬКО JSON: {"facts_grounded":bool,"hook_standalone":bool,"unique_insight":bool,"lesson_and_question":bool,"no_irony_at_hero":bool,"confidentiality":bool,"no_hidden_sale":bool,"voice":bool,"fixes":["конкретная правка",…]}
+    const res = await S.sample.json(`Ты агент-редактор. Проверь вариант A поста по карточке героя. Верни ТОЛЬКО JSON: {"facts_grounded":bool,"hook_standalone":bool,"unique_insight":bool,"lesson_and_question":bool,"no_irony_at_hero":bool,"confidentiality":bool,"no_hidden_sale":bool,"voice":bool,"fixes":["конкретная правка на русском",…]}
+
+Пост на английском: проверяй английский текст (живой разговорный английский, без корпоративных клише).
 
 facts_grounded — все факты/цифры/цитаты есть в карточке; hook_standalone — хук понятен без контекста; unique_insight — инсайт не подходит к 100 другим компаниям; lesson_and_question — есть урок и финальный вопрос не «да/нет»; no_irony_at_hero; confidentiality — нет непубличных деталей сделок; no_hidden_sale — нет оффера; voice — живой разговорный язык без канцелярита.
 
@@ -661,7 +663,7 @@ facts_grounded — все факты/цифры/цитаты есть в кар�
 }
 function rewriteBox(p, hero) {
   const id = "rw-" + p.id;
-  const ta = h("textarea", { id, class: "short", placeholder: "Например: хук слишком общий, начни с цифры 40 номеров; убери иронию; больше про выбор оператора" });
+  const ta = h("textarea", { id, class: "short", placeholder: "Можно по-русски: хук слишком общий, начни с цифры; убери иронию; больше про выбор оператора" });
   const keep = h("input", { type: "checkbox", id: "keep-" + p.id });
   const busy = S.busy["rw:" + p.id];
   return h("div", { class: "panel", style: "background:var(--sunk)" },
@@ -675,7 +677,7 @@ async function rewrite(p, hero, instruction, keep) {
   try {
     if (keep) await addCorrection(instruction);
     const current = p.chosen ? `ТЕКУЩИЙ ТЕКСТ:\n${p.final_text}` : `ВАРИАНТ A:\n${p.variant_a}\n\nВАРИАНТ B:\n${p.variant_b}`;
-    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nКАРТОЧКА ГЕРОЯ:\n${JSON.stringify(cardFor(hero.hero ? hero : p))}\n\n${current}\n\nКОРРЕКТИРОВКА ОТ АВТОРА: ${instruction}\n\nПерепиши с учётом корректировки, сохрани все правила. ${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
+    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nHERO CARD:\n${JSON.stringify(cardFor(hero.hero ? hero : p))}\n\n${current}\n\nAUTHOR'S CORRECTION (may be in Russian): ${instruction}\n\nRewrite applying the correction and keeping every rule. Posts stay in English. ${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
     const passed = ["a", "b"].some((v) => checkPost(out["variant_" + v], hero.handle || p.handle, p.hero).passed);
     await save("posts/" + p.id, {
       variant_a: out.variant_a || p.variant_a, variant_b: out.variant_b || p.variant_b, hook_type_a: out.hook_type_a || p.hook_type_a, hook_type_b: out.hook_type_b || p.hook_type_b,
@@ -814,7 +816,7 @@ function dataSummary() {
 }
 const CHAT_RULES = `Ты агент контент-конвейера Заиры — эксперта по сделкам с люксовыми и ультра-люксовыми отелями. Конвейер: разведчик (ищет героев, скоринг 0–5 по 6 критериям, берём от 20/30), исследователь (факты со ссылками), аналитик (линза и инсайт, тест на уникальность), автор (2 варианта поста), редактор (проверки), человек (одобряет). Баланс в месяц: 35% продающая сторона, 35% покупающая, 30% экосистема. Одного героя не чаще раза в 3 месяца. Ритм 3–4 поста в неделю. Главная метрика — входящие сообщения.
 
-Отвечай по-русски, коротко и по делу, опираясь на данные дашборда ниже. Ты НЕ можешь искать в интернете: если нужен поиск или исследование — вызови инструмент queue_task и скажи, что задача поставлена и её выполнит Claude в чате по команде «выполни задачи из дашборда». Если пользователь даёт правило для всех будущих постов — вызови add_correction. Если просит написать пост о герое — вызови write_post. Не выдумывай факты о героях.`;
+Отвечай по-русски, коротко и по делу (посты и анализ героев всегда на английском — если предлагаешь хук или текст поста, пиши его на английском), опираясь на данные дашборда ниже. Ты НЕ можешь искать в интернете: если нужен поиск или исследование — вызови инструмент queue_task и скажи, что задача поставлена и её выполнит Claude в чате по команде «выполни задачи из дашборда». Если пользователь даёт правило для всех будущих постов — вызови add_correction. Если просит написать пост о герое — вызови write_post. Не выдумывай факты о героях.`;
 async function sendChat() {
   const text = (S.chatDraft || "").trim();
   if (!text || !S.sample || S.busy.chat) return;

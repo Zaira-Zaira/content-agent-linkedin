@@ -25,3 +25,6 @@
 - topic_link: помогает ли пост показать экспертизу автора?
 
 Найди {n} кандидатов. Нужный баланс сегментов в этой партии: {segment_need}.
+
+
+LANGUAGE: write occasion and why in English.
