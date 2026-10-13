@@ -207,7 +207,7 @@ const SCORE_LABELS = { fit: "Попадание в цель", fresh: "Свежи
 const KEYWORDS = ["luxury hotel","ultra-luxury","hospitality investment","hotel transaction","hotel m&a","отел","инвестиции в отели","продажа отеля","family office","private equity","branded residences","revpar","adr","cap rate","resort","boutique hotel","design hotel","real estate"];
 const BANNED = ["in today's world","it's no secret","plays a key role","unique opportunity","worth noting","it's important to understand","let's dive","deep dive","dive into","in conclusion","innovative","game-changer","game changer","synergy","next level","inspiring","true professionals","dream team","hi everyone","today i want to share","genius","incredible","the best","в современном мире","не секрет","играет ключевую роль","уникальная возможность","стоит отметить","важно понимать","в заключение","давайте разберёмся","давайте разберемся","погрузимся","инновационн","эффективные решения","новый уровень","синерги","вдохновляет","настоящие профессионалы","команда мечты","друзья, всем привет","сегодня хочу рассказать","гениальн","невероятн","лучший","лучшая","лучшее"];
 const FORBIDDEN_STARTS = ["today i want to share","hi everyone","hello everyone","in today's world","it's no secret","сегодня хочу рассказать","друзья","в современном мире","не секрет"];
-const TASK_TYPES = { scout: "Найти новых героев", research: "Исследовать героя", deepen: "Дособрать факты", other: "Другое" };
+const TASK_TYPES = { goal_people: "Найти людей под цель", scout: "Найти новых героев", research: "Исследовать героя", deepen: "Дособрать факты", other: "Другое" };
 
 const AUTHOR_RULES = `You write LinkedIn posts IN ENGLISH on behalf of Zaira, an expert in buying and selling luxury and ultra-luxury hotels with a unique concept and strong design. You are not a copywriter and not an AI: you are a practitioner who has taken someone else's company apart and is sharing an observation with smart peers.
 
@@ -225,7 +225,7 @@ FORMAT: 600–1300 characters, 1800 max. Paragraphs of 1–3 lines with a blank 
 
 // ---------- состояние ----------
 const S = {
-  tab: "overview", heroes: [], posts: [], tasks: [], corrections: [],
+  tab: "overview", heroes: [], posts: [], tasks: [], corrections: [], goals: [], goalId: null, newGoal: false, uid: null, priv: {},
   heroId: null, postId: null, heroFilter: "all", postFilter: "open",
   dbReady: false, db: null, sample: null, canWrite: true, chat: [], busy: {}, drafts: {},
 };
@@ -311,6 +311,13 @@ async function save(path, data, merge = true) {
     throw e;
   }
 }
+// Личное хранилище: видно только вам (data/users/<ваш id>), даже если дашборд открыт по ссылке
+const privKey = (kind, id) => kind + "-" + id;
+const privGet = (kind, id) => S.priv[privKey(kind, id)]?.text || "";
+async function privSet(kind, id, text) {
+  if (!S.uid) { toast("Личное хранилище недоступно: войдите в Claude"); throw new Error("no uid"); }
+  await S.db.collection("data/users/" + S.uid).doc(privKey(kind, id)).set({ text, updated: nowIso() });
+}
 async function remove(path) { try { await S.db.doc(path).delete(); } catch (e) { toast("Не удалилось: " + (e?.message || e)); } }
 
 function subscribe() {
@@ -320,17 +327,19 @@ function subscribe() {
   );
   sub("heroes", "heroes", (a, b) => (b.total ?? total(b.scores)) - (a.total ?? total(a.scores)));
   sub("posts", "posts", (a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+  sub("goals", "goals", (a, b) => (a.status === "done") - (b.status === "done") || String(b.created || "").localeCompare(String(a.created || "")));
   sub("tasks", "tasks", (a, b) => String(b.created || "").localeCompare(String(a.created || "")));
+  if (S.uid) S.db.collection("data/users/" + S.uid).onSnapshot((snap) => { S.priv = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()])); render(); }, () => {});
   S.db.doc("settings/guidelines").onSnapshot((d) => { S.corrections = d.exists ? (d.data().corrections || []) : []; render(); });
 }
 
 // ---------- вкладки ----------
 const TABS = [
-  ["overview", "Обзор"], ["heroes", "Герои"], ["posts", "Посты"], ["metrics", "Метрики"], ["agent", "Агент"],
+  ["overview", "Обзор"], ["goals", "Цели"], ["heroes", "Герои"], ["posts", "Посты"], ["metrics", "Метрики"], ["agent", "Агент"],
 ];
 function renderTabs() {
   const nav = $("#tabs"); nav.replaceChildren();
-  const counts = { heroes: S.heroes.length, posts: S.posts.filter((p) => ["draft", "ready", "needs_fix"].includes(p.status)).length, agent: S.tasks.filter((t) => t.status === "queued").length };
+  const counts = { goals: S.goals.filter((g) => g.status !== "done").length, heroes: S.heroes.length, posts: S.posts.filter((p) => ["draft", "ready", "needs_fix"].includes(p.status)).length, agent: S.tasks.filter((t) => t.status === "queued").length };
   for (const [id, label] of TABS) {
     nav.append(h("button", { class: "tab", role: "tab", "aria-selected": String(S.tab === id), onclick: () => go(id) },
       label, counts[id] ? h("span", { class: "n" }, counts[id]) : null));
@@ -346,7 +355,7 @@ function render() {
   renderTabs();
   const app = $("#app");
   const focusId = document.activeElement?.id;
-  const view = { overview: vOverview, heroes: vHeroes, posts: vPosts, metrics: vMetrics, agent: vAgent }[S.tab] || vOverview;
+  const view = { overview: vOverview, goals: vGoals, heroes: vHeroes, posts: vPosts, metrics: vMetrics, agent: vAgent }[S.tab] || vOverview;
   const node = h("div", { class: "view" });
   if (!S.db && S.dbChecked) node.append(h("div", { class: "banner" }, "Хранилище недоступно в этом просмотре. Откройте страницу в Claude, войдя в аккаунт."));
   if (S.db && !S.canWrite) node.append(h("div", { class: "banner" }, "Режим просмотра: изменения сохранять нельзя."));
@@ -372,6 +381,11 @@ function vOverview(root) {
     kpi("Опубликовано за неделю", thisWeek, "ритм: 3–4 в неделю"),
     kpi("Героев в базе", S.heroes.length, `${S.heroes.filter((x) => x.status === "researched").length} исследовано`),
   ));
+
+  const active = S.goals.filter((x) => x.status !== "done");
+  const gp = h("section", { class: "panel" }, h("div", { class: "panel-head" }, h("h2", {}, "Цели в работе"), h("button", { class: "btn ghost", onclick: () => go("goals", { newGoal: !active.length }) }, active.length ? "Все цели →" : "Поставить цель →")));
+  gp.append(active.length ? h("div", { class: "list" }, active.slice(0, 4).map(goalRow)) : emptyBox("Целей пока нет", "Поставьте задачу, которую нужно решить, например «найти покупателей на трофейный отель». Агент найдёт людей и напишет посты под неё."));
+  root.append(gp);
 
   const g = h("div", { class: "grid2" });
   // очередь
@@ -442,9 +456,14 @@ function heroDetail(x) {
   if (x.one_liner) p.append(h("p", { style: "margin:0" }, x.one_liner));
   if (x.occasion) p.append(h("p", { class: "note", style: "margin:0" }, `Повод (${fmtDate(x.occasion_date)}): ${x.occasion}`));
 
+  const hg = S.goals.filter((g) => (x.goalIds || []).includes(g.id));
+  if (hg.length) p.append(h("div", { class: "chips" }, hg.map((g) => h("button", { class: "fbtn", onclick: () => go("goals", { goalId: g.id, newGoal: false }) }, "Цель: " + g.title))));
+  if (x.goal_fit) p.append(h("div", { class: "insight", style: "background:var(--brass-soft)" }, h("small", { style: "color:var(--brass)" }, "Почему подходит под цель"), x.goal_fit));
+  const gsel = h("select", { id: "gsel-" + x.id, "aria-label": "Под какую цель пост" }, h("option", { value: "" }, "Пост без цели"), S.goals.filter((g) => g.status !== "done").map((g) => h("option", { value: g.id, selected: (x.goalIds || [])[0] === g.id }, "Под цель: " + g.title)));
+  if (S.goals.length) p.append(gsel);
   const acts = h("div", { class: "actions" });
   const busyW = S.busy["write:" + x.id];
-  acts.append(h("button", { class: "btn primary", disabled: busyW || !S.sample || !S.canWrite || !(x.facts || []).length, onclick: () => writePost(x), title: (x.facts || []).length ? "" : "Сначала нужны факты из исследования" }, busyW ? "Пишу пост…" : "Написать пост"));
+  acts.append(h("button", { class: "btn primary", disabled: busyW || !S.sample || !S.canWrite || !(x.facts || []).length, onclick: () => writePost(x, gsel.value || null), title: (x.facts || []).length ? "" : "Сначала нужны факты из исследования" }, busyW ? "Пишу пост…" : "Написать пост"));
   acts.append(h("button", { class: "btn", disabled: !S.canWrite, onclick: () => queueTask((x.facts || []).length ? "deepen" : "research", `${(x.facts || []).length ? "Дособрать факты" : "Исследовать"}: ${x.hero}`, { heroId: x.id }) }, (x.facts || []).length ? "Дособрать факты" : "Исследовать"));
   acts.append(h("button", { class: "btn", onclick: () => askAbout(`Расскажи про героя «${x.hero}»: в чём сильная сторона для поста и какие риски?`) }, "Спросить Claude"));
   if (x.status !== "rejected") acts.append(h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: () => save("heroes/" + x.id, { status: "rejected", updated: nowIso() }) }, "Отклонить"));
@@ -478,10 +497,10 @@ function heroDetail(x) {
   // заметка
   const nid = "note-" + x.id;
   const note = h("textarea", { id: nid, class: "short", placeholder: "Ваши заметки о герое: созвон, контекст, что не упоминать…" });
-  note.value = x.my_notes || "";
-  p.append(h("label", { class: "f", for: nid }, "Мои заметки (приватные данные созвона в пост попадают только с согласия героя)"), note,
+  note.value = privGet("note", x.id) || x.my_notes || "";
+  p.append(h("label", { class: "f", for: nid }, "Мои заметки — видите только вы. В пост попадают только с согласия героя"), note,
     h("div", { class: "actions" },
-      h("button", { class: "btn", disabled: !S.canWrite, onclick: () => save("heroes/" + x.id, { my_notes: note.value, updated: nowIso() }).then(() => { clearDraft(nid); toast("Заметка сохранена"); }) }, "Сохранить заметку"),
+      h("button", { class: "btn", disabled: !S.canWrite, onclick: () => privSet("note", x.id, note.value).then(async () => { if (x.my_notes) await save("heroes/" + x.id, { my_notes: "" }); clearDraft(nid); toast("Заметка сохранена в личном хранилище"); }) }, "Сохранить заметку"),
       h("label", { class: "note", style: "display:flex;gap:6px;align-items:center" }, h("input", { type: "checkbox", id: "consent-" + x.id, checked: !!x.hero_consent, disabled: !S.canWrite, onchange: (e) => save("heroes/" + x.id, { hero_consent: e.target.checked }) }), "Герой согласен на использование разговора")));
   return p;
 }
@@ -512,6 +531,8 @@ function postDetail(p) {
   panel.append(h("div", { class: "panel-head" },
     h("div", {}, h("h2", { style: "font-size:18px" }, p.hero), h("div", { class: "note" }, [hero.lens, p.expected_action && "Цель: " + p.expected_action].filter(Boolean).join(" · "))),
     h("div", { class: "chips" }, segChip(p.segment), statusChip(POST_STATUS, p.status))));
+  const pg = S.goals.find((g) => g.id === p.goalId);
+  if (pg) panel.append(h("div", { class: "chips" }, h("button", { class: "fbtn", onclick: () => go("goals", { goalId: pg.id, newGoal: false }) }, "Цель: " + pg.title), p.angle ? h("span", { class: "chip" }, "Угол: " + p.angle) : null));
 
   if (["draft", "ready", "needs_fix"].includes(p.status) && !p.chosen) {
     const vs = h("div", { class: "variants" });
@@ -619,17 +640,26 @@ function corrBlock() { return S.corrections.length ? "\n\nSTANDING CORRECTIONS F
 function cardFor(x) {
   const keys = ["hero", "handle", "segment", "role", "one_liner", "facts", "quotes", "different_from_market", "risky_decision", "lens", "insight", "lesson_for_reader", "our_angle", "hero_consent"];
   const c = Object.fromEntries(keys.filter((k) => x[k] != null).map((k) => [k, x[k]]));
-  if (x.my_notes && x.hero_consent) c.private_notes = x.my_notes;
+  const notes = privGet("note", x.id) || x.my_notes; if (notes && x.hero_consent) c.private_notes = notes;
   return c;
 }
 const DRAFT_FORMAT = `All post texts, hook types, expected_action and first_comment in ENGLISH. Return ONLY JSON, no commentary:
 {"status":"OK" | "NEED_MORE_DATA","missing_data":[...],"variant_a":"post text","variant_b":"post text with a different hook","hook_type_a":"…","hook_type_b":"…","facts_used":["source_url",…],"expected_action":"what the reader should do","first_comment":"Sources: url1, url2"}`;
 
-async function writePost(x) {
+function goalBlock(goal, angle) {
+  if (!goal) return "";
+  const aud = (goal.plan?.audience || []).map((a) => a.type).join("; ");
+  return `\n\nCAMPAIGN GOAL (the business task this post serves; written in Russian): ${goal.title}. ${goal.description || ""}
+Target readers: ${aud || "see goal"}.
+${angle ? "Angle for this post: " + angle + "\n" : ""}The post must make these readers notice the author and see her as the person to talk to about this — without selling. The hero is an example that these readers recognise as one of their own. NEVER mention, describe or hint at the specific asset, client or deal behind this goal: it is confidential. A soft open door at the end is fine (e.g. "If you're looking at assets like this, happy to compare notes").`;
+}
+async function writePost(x, goalId = null, angle = "") {
   if (!S.sample) return;
+  const goal = S.goals.find((g) => g.id === goalId) || null;
+  if (!angle && goal) angle = (goal.plan?.post_angles || [])[S.posts.filter((p) => p.goalId === goal.id).length % Math.max(1, (goal.plan?.post_angles || []).length)]?.angle || "";
   const key = "write:" + x.id; S.busy[key] = true; render();
   try {
-    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nHERO CARD (JSON):\n${JSON.stringify(cardFor(x), null, 1)}\n\n${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
+    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}${goalBlock(goal, angle)}\n\nHERO CARD (JSON):\n${JSON.stringify(cardFor(x), null, 1)}\n\n${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
     if (out?.status === "NEED_MORE_DATA") {
       await save("heroes/" + x.id, { status: "need_more_data", missing_data: out.missing_data || [] });
       await queueTask("deepen", `Дособрать факты: ${x.hero} — ${(out.missing_data || []).join("; ")}`, { heroId: x.id }, true);
@@ -642,6 +672,7 @@ async function writePost(x) {
       heroId: x.id, hero: x.hero, handle: x.handle || "", segment: x.segment, created: nowIso(), status: passed ? "ready" : "needs_fix",
       variant_a: out.variant_a || "", variant_b: out.variant_b || "", hook_type_a: out.hook_type_a || "", hook_type_b: out.hook_type_b || "",
       facts_used: out.facts_used || [], expected_action: out.expected_action || "", first_comment: out.first_comment || "", chosen: null, corrections: [], source: "page",
+      goalId: goal?.id || null, angle: angle || null,
     }, false);
     go("posts", { postId: id });
     toast("Два варианта готовы");
@@ -677,7 +708,7 @@ async function rewrite(p, hero, instruction, keep) {
   try {
     if (keep) await addCorrection(instruction);
     const current = p.chosen ? `ТЕКУЩИЙ ТЕКСТ:\n${p.final_text}` : `ВАРИАНТ A:\n${p.variant_a}\n\nВАРИАНТ B:\n${p.variant_b}`;
-    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}\n\nHERO CARD:\n${JSON.stringify(cardFor(hero.hero ? hero : p))}\n\n${current}\n\nAUTHOR'S CORRECTION (may be in Russian): ${instruction}\n\nRewrite applying the correction and keeping every rule. Posts stay in English. ${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
+    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}${goalBlock(S.goals.find((g) => g.id === p.goalId), p.angle)}\n\nHERO CARD:\n${JSON.stringify(cardFor(hero.hero ? hero : p))}\n\n${current}\n\nAUTHOR'S CORRECTION (may be in Russian): ${instruction}\n\nRewrite applying the correction and keeping every rule. Posts stay in English. ${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
     const passed = ["a", "b"].some((v) => checkPost(out["variant_" + v], hero.handle || p.handle, p.hero).passed);
     await save("posts/" + p.id, {
       variant_a: out.variant_a || p.variant_a, variant_b: out.variant_b || p.variant_b, hook_type_a: out.hook_type_a || p.hook_type_a, hook_type_b: out.hook_type_b || p.hook_type_b,
@@ -748,6 +779,148 @@ function groupTable(posts) {
     h("tbody", {}, rows.map((r) => h("tr", {}, h("td", {}, r[0]), h("td", { style: "white-space:normal" }, r[1]), h("td", { class: "n" }, r[2]), h("td", { class: "n" }, r[3].toFixed(1)))))));
 }
 
+// ---------- Цели ----------
+const GOAL_EXAMPLES = ["Найти покупателей на трофейный отель", "Найти отели на продажу для family office", "Выйти на операторов для независимого отеля", "Найти инвестора в проект branded residences"];
+function goalRow(g) {
+  const people = S.heroes.filter((x) => (x.goalIds || []).includes(g.id)).length;
+  const posts = S.posts.filter((p) => p.goalId === g.id);
+  const inbound = posts.reduce((a, p) => a + (+p.metrics?.inbound_messages || 0), 0);
+  return h("button", { class: "row", "aria-current": String(S.goalId === g.id && S.tab === "goals"), onclick: () => go("goals", { goalId: g.id, newGoal: false }) },
+    h("span", { class: "t" }, h("span", {}, g.title), h("span", { class: "chip " + (g.status === "done" ? "good" : g.plan ? "" : "warn") }, g.status === "done" ? "решена" : g.plan ? "в работе" : "нужен план")),
+    h("span", { class: "chips" }, h("span", { class: "chip" }, `людей: ${people}`), h("span", { class: "chip" }, `постов: ${posts.length}`), inbound ? h("span", { class: "chip good" }, `входящих: ${inbound}`) : null),
+    g.description ? h("span", { class: "s" }, g.description) : null);
+}
+async function createGoal(title, description, asset) {
+  const id = new Date().toISOString().slice(0, 10) + "_" + slug(title).slice(0, 40) + "_" + Math.random().toString(36).slice(2, 5);
+  await save("goals/" + id, { title, description, status: "active", created: nowIso(), plan: null }, false);
+  if (asset) await privSet("asset", id, asset);
+  S.goalId = id; S.newGoal = false;
+  return id;
+}
+function vGoals(root) {
+  const left = h("section", { class: "panel" },
+    h("div", { class: "panel-head" }, h("h2", {}, "Цели"), h("button", { class: "btn primary", disabled: !S.canWrite || !S.db, onclick: () => { S.newGoal = true; render(); } }, "+ Новая цель")),
+    S.goals.length ? h("div", { class: "list" }, S.goals.map(goalRow)) : h("p", { class: "note", style: "margin:0" }, "Цель — это задача, которую вам нужно решить. Агент подберёт людей и напишет посты, которые на неё работают."));
+  const goal = !S.newGoal && (S.goals.find((g) => g.id === S.goalId) || S.goals[0]);
+  root.append(h("div", { class: "split" }, left, goal ? goalDetail(goal) : newGoalForm()));
+}
+function newGoalForm() {
+  const t = h("input", { type: "text", id: "goal-title", placeholder: "Например: найти покупателей на трофейный отель" });
+  const d = h("textarea", { id: "goal-desc", class: "short", placeholder: "Что нужно, к какому сроку, кто идеальный результат. Например: нужен покупатель с чеком €80–150 млн, готовый к off-market сделке до лета." });
+  const a = h("textarea", { id: "goal-asset", class: "short", placeholder: "Детали актива: тип, ключи, регион, концепция, ориентир цены. Видите только вы и агент при планировании. В посты не попадут." });
+  const p = h("section", { class: "panel" },
+    h("h2", { style: "font-size:18px" }, "Новая цель"),
+    h("div", { class: "suggest" }, GOAL_EXAMPLES.map((ex) => h("button", { class: "fbtn", onclick: () => { t.value = ex; S.drafts["goal-title"] = ex; } }, ex))),
+    h("label", { class: "f", for: "goal-title" }, "Задача"), t,
+    h("label", { class: "f", for: "goal-desc" }, "Подробности (видны всем, у кого есть доступ к дашборду — детали актива пишите ниже)"), d,
+    h("label", { class: "f", for: "goal-asset" }, "Конфиденциально: о каком активе или клиенте речь (видите только вы)"), a,
+    h("div", { class: "actions" },
+      h("button", { class: "btn primary", disabled: !S.canWrite || !S.db, onclick: async () => {
+        const title = t.value.trim(); if (!title) { toast("Опишите задачу"); return; }
+        const id = await createGoal(title, d.value.trim(), a.value.trim());
+        clearDraft("goal-title", "goal-desc", "goal-asset");
+        render();
+        const g = { id, title, description: d.value.trim(), asset: a.value.trim() };
+        if (S.sample) makePlan(g);
+      } }, S.sample ? "Создать и составить план" : "Создать цель"),
+      S.goals.length ? h("button", { class: "btn ghost", onclick: () => { S.newGoal = false; render(); } }, "Отмена") : null));
+  return p;
+}
+async function makePlan(g) {
+  if (!S.sample) return;
+  const key = "plan:" + g.id; S.busy[key] = true; render();
+  try {
+    const plan = await S.sample.json(`Ты стратег контент-конвейера Заиры — эксперта по покупке и продаже люксовых и ультра-люксовых отелей с уникальной концепцией и дизайном. Её LinkedIn-посты — это разборы реальных компаний и людей («герои»), которые привлекают нужных людей, чтобы те сами написали ей.
+
+Пользователь поставил бизнес-задачу. Составь план: кого нужно привлечь, как их найти и какие посты их привлекут.
+
+ЗАДАЧА: ${g.title}
+ПОДРОБНОСТИ: ${g.description || "—"}
+КОНФИДЕНЦИАЛЬНО (актив/клиент, используй только чтобы понять аудиторию; НЕ упоминай его признаки в углах постов и поисковых запросах так, чтобы актив можно было узнать): ${g.asset || privGet("asset", g.id) || "—"}
+
+Правила: герои постов — реальные компании и люди с публичным свежим поводом (сделка, назначение, открытие, интервью), которые сами относятся к целевой аудитории или которых эта аудитория уважает. Посты не продают и не раскрывают актив. Баланс общей ленты 35/35/30 сохраняется, но цель получает приоритет.
+
+Верни ТОЛЬКО JSON (всё на русском, кроме hook_idea — на английском):
+{"summary":"суть плана в 2 предложениях",
+ "audience":[{"type":"тип людей/компаний","why":"почему они подходят","signals":"по каким публичным признакам их найти"}],
+ "where_to_search":["источник"],
+ "search_queries":["поисковый запрос на английском"],
+ "hero_types":["какие герои для постов привлекут эту аудиторию"],
+ "post_angles":[{"angle":"угол поста","hook_idea":"hook in English","attracts":"кого и чем привлечёт"}],
+ "cadence":"сколько постов и в каком ритме",
+ "success_metric":"как поймём, что цель работает",
+ "confidentiality":"что нельзя упоминать в постах"}`, { modelTier: "complex", cache: false });
+    await save("goals/" + g.id, { plan, plan_updated: nowIso() });
+    toast("План готов");
+  } catch (e) { toast(sampleErr(e)); }
+  finally { delete S.busy[key]; render(); }
+}
+function goalDetail(g) {
+  const plan = g.plan;
+  const people = S.heroes.filter((x) => (x.goalIds || []).includes(g.id));
+  const posts = S.posts.filter((p) => p.goalId === g.id);
+  const withM = posts.filter((p) => p.metrics);
+  const busyP = S.busy["plan:" + g.id];
+  const p = h("section", { class: "panel" });
+  p.append(h("div", { class: "panel-head" }, h("h2", { style: "font-size:18px" }, g.title), h("span", { class: "chip " + (g.status === "done" ? "good" : "") }, g.status === "done" ? "решена" : "в работе")));
+  if (g.description) p.append(h("p", { style: "margin:0" }, g.description));
+  {
+    const aid = "asset-" + g.id;
+    const at = h("textarea", { id: aid, class: "short", placeholder: "Тип, ключи, регион, концепция, ориентир цены. Видите только вы; в посты не попадает." });
+    at.value = privGet("asset", g.id);
+    p.append(h("details", { open: !!privGet("asset", g.id) || null }, h("summary", { class: "note" }, "Конфиденциально: актив или клиент (видите только вы)"),
+      h("div", { class: "view", style: "gap:8px;margin-top:8px" }, at, h("div", { class: "actions" }, h("button", { class: "btn", disabled: !S.uid, onclick: () => privSet("asset", g.id, at.value).then(() => { clearDraft(aid); toast("Сохранено в личном хранилище"); }) }, "Сохранить")))));
+  }
+
+  p.append(h("div", { class: "kpis" },
+    kpi("Людей найдено", people.length, people.filter((x) => (x.facts || []).length).length + " с фактами"),
+    kpi("Постов под цель", posts.length, posts.filter((x) => x.status === "published").length + " опубликовано"),
+    kpi("Входящие", withM.reduce((a, x) => a + (+x.metrics.inbound_messages || 0), 0), "по постам цели", true)));
+
+  const acts = h("div", { class: "actions" },
+    h("button", { class: "btn " + (plan ? "" : "primary"), disabled: busyP || !S.sample || !S.canWrite, onclick: () => makePlan(g) }, busyP ? "Составляю план…" : plan ? "Обновить план" : "Составить план"),
+    h("button", { class: "btn " + (plan ? "primary" : ""), disabled: !S.canWrite || !S.db, onclick: () => queueTask("goal_people", `Найти людей под цель «${g.title}»` + (plan ? ": " + plan.audience.map((a) => a.type).join("; ") : ""), { goalId: g.id }) }, "Найти людей"),
+    h("button", { class: "btn", disabled: !S.sample, onclick: () => askAbout(`Цель «${g.title}» (id ${g.id}). Что делать дальше: кого из найденных взять в пост первым, какой угол выбрать, кого не хватает?`) }, "Спросить Claude"),
+    g.status !== "done" ? h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("goals/" + g.id, { status: "done", done_at: nowIso() }) }, "Цель решена") : h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("goals/" + g.id, { status: "active" }) }, "Вернуть в работу"));
+  p.append(acts);
+  const gq = S.tasks.filter((t) => t.goalId === g.id && t.status === "queued");
+  if (gq.length) p.append(h("p", { class: "note", style: "margin:0" }, `В очереди задач: ${gq.length}. Напишите в чате Claude: «выполни задачи из дашборда».`));
+
+  if (plan) {
+    p.append(h("div", { class: "insight" }, h("small", {}, "План"), plan.summary || ""));
+    if ((plan.audience || []).length) {
+      p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, "Кого привлекаем"));
+      p.append(h("ul", { class: "facts" }, plan.audience.map((a) => h("li", { style: "grid-template-columns:minmax(0,1fr)" }, h("div", {}, h("strong", {}, a.type), h("div", {}, a.why), a.signals ? h("div", { class: "src" }, "Признаки: " + a.signals) : null)))));
+    }
+    if ((plan.post_angles || []).length) {
+      p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, "Углы постов"));
+      p.append(h("ul", { class: "facts" }, plan.post_angles.map((a) => h("li", { style: "grid-template-columns:minmax(0,1fr)" }, h("div", {}, h("strong", {}, a.angle), a.hook_idea ? h("div", { style: "font-style:italic" }, a.hook_idea) : null, h("div", { class: "src" }, a.attracts || ""))))));
+    }
+    const kv = h("dl", { class: "kv" });
+    if ((plan.hero_types || []).length) kv.append(h("dt", {}, "Герои для постов"), h("dd", {}, plan.hero_types.join("; ")));
+    if ((plan.where_to_search || []).length) kv.append(h("dt", {}, "Где искать"), h("dd", {}, plan.where_to_search.join("; ")));
+    if (plan.cadence) kv.append(h("dt", {}, "Ритм"), h("dd", {}, plan.cadence));
+    if (plan.success_metric) kv.append(h("dt", {}, "Как поймём, что работает"), h("dd", {}, plan.success_metric));
+    if (plan.confidentiality) kv.append(h("dt", {}, "Не упоминать"), h("dd", {}, plan.confidentiality));
+    p.append(kv);
+  } else p.append(emptyBox("Плана ещё нет", S.sample ? "Нажмите «Составить план»: агент определит, кого привлекать и какие посты писать." : "План составляется при открытии страницы в Claude, или попросите меня в чате."));
+
+  p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, `Люди и компании под цель (${people.length})`));
+  if (people.length) {
+    p.append(h("div", { class: "list" }, people.map((x) => h("div", { class: "row", style: "cursor:default" },
+      h("span", { class: "t" }, h("button", { class: "btn ghost", style: "padding:0;font-weight:600;color:var(--ink)", onclick: () => go("heroes", { heroId: x.id }) }, x.hero), h("span", { class: "score" }, (x.total ?? total(x.scores)) + "/30")),
+      h("span", { class: "chips" }, segChip(x.segment), statusChip(HERO_STATUS, x.status || "candidate")),
+      x.goal_fit ? h("span", { class: "s", style: "-webkit-line-clamp:3" }, x.goal_fit) : null,
+      h("span", { class: "actions" },
+        h("button", { class: "btn", disabled: S.busy["write:" + x.id] || !S.sample || !S.canWrite || !(x.facts || []).length, onclick: () => writePost(x, g.id) }, S.busy["write:" + x.id] ? "Пишу…" : "Пост под цель"),
+        !(x.facts || []).length ? h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => queueTask("research", `Исследовать: ${x.hero} (под цель «${g.title}»)`, { heroId: x.id, goalId: g.id }) }, "Исследовать") : null)))));
+  } else p.append(h("p", { class: "note", style: "margin:0" }, "Пока никого. Нажмите «Найти людей» и напишите в чате Claude «выполни задачи из дашборда»."));
+
+  if (posts.length) { p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, `Посты под цель (${posts.length})`), h("div", { class: "list" }, posts.map(postRow))); }
+  p.append(h("div", { class: "actions" }, h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: (e) => confirmBtn(e.target, "Удалить цель?", () => remove("goals/" + g.id).then(() => { S.goalId = null; })) }, "Удалить цель")));
+  return p;
+}
+
 // ---------- Агент ----------
 function taskRow(t) {
   return h("div", { class: "task" },
@@ -810,13 +983,14 @@ function dataSummary() {
     today: new Date().toISOString().slice(0, 10),
     heroes: S.heroes.map((x) => ({ id: x.id, hero: x.hero, company: x.company, segment: x.segment, status: x.status, score: x.total ?? total(x.scores), occasion: x.occasion, lens: x.lens, insight: x.insight, facts: (x.facts || []).length })),
     posts: S.posts.map((p) => ({ id: p.id, hero: p.hero, segment: p.segment, status: p.status, hook: p.hook_type, created: p.created, first_line: (p.final_text || p.variant_a || "").split("\n")[0], metrics: p.metrics || null })),
+    goals: S.goals.map((g) => ({ id: g.id, title: g.title, description: g.description, status: g.status, audience: (g.plan?.audience || []).map((a) => a.type), angles: (g.plan?.post_angles || []).map((a) => a.angle), people: S.heroes.filter((x) => (x.goalIds || []).includes(g.id)).map((x) => x.id), posts: S.posts.filter((p) => p.goalId === g.id).length })),
     queued_tasks: S.tasks.filter((t) => t.status === "queued").map((t) => t.text),
     corrections: S.corrections.map((c) => c.text),
   });
 }
 const CHAT_RULES = `Ты агент контент-конвейера Заиры — эксперта по сделкам с люксовыми и ультра-люксовыми отелями. Конвейер: разведчик (ищет героев, скоринг 0–5 по 6 критериям, берём от 20/30), исследователь (факты со ссылками), аналитик (линза и инсайт, тест на уникальность), автор (2 варианта поста), редактор (проверки), человек (одобряет). Баланс в месяц: 35% продающая сторона, 35% покупающая, 30% экосистема. Одного героя не чаще раза в 3 месяца. Ритм 3–4 поста в неделю. Главная метрика — входящие сообщения.
 
-Отвечай по-русски, коротко и по делу (анализ героев — на русском, посты — всегда на английском: если предлагаешь хук или текст поста, пиши его на английском), опираясь на данные дашборда ниже. Ты НЕ можешь искать в интернете: если нужен поиск или исследование — вызови инструмент queue_task и скажи, что задача поставлена и её выполнит Claude в чате по команде «выполни задачи из дашборда». Если пользователь даёт правило для всех будущих постов — вызови add_correction. Если просит написать пост о герое — вызови write_post. Не выдумывай факты о героях.`;
+Отвечай по-русски, коротко и по делу (анализ героев — на русском, посты — всегда на английском: если предлагаешь хук или текст поста, пиши его на английском), опираясь на данные дашборда ниже. Ты НЕ можешь искать в интернете: если нужен поиск или исследование — вызови инструмент queue_task и скажи, что задача поставлена и её выполнит Claude в чате по команде «выполни задачи из дашборда». Если пользователь даёт правило для всех будущих постов — вызови add_correction. Если пользователь описывает бизнес-задачу («найти покупателей на…», «выйти на операторов…») — создай цель через create_goal, а затем поставь задачу goal_people с её goalId. Если просит написать пост о герое — вызови write_post. Не выдумывай факты о героях.`;
 async function sendChat() {
   const text = (S.chatDraft || "").trim();
   if (!text || !S.sample || S.busy.chat) return;
@@ -825,12 +999,14 @@ async function sendChat() {
   const turns = [{ role: "user", content: CHAT_RULES + "\n\nДАННЫЕ ДАШБОРДА:\n" + dataSummary() }, { role: "assistant", content: "Понял, данные и правила у меня. Слушаю." }];
   for (const m of S.chat.slice(0, -1)) if (m.role === "me" || (m.role === "ai" && m.content)) turns.push({ role: m.role === "me" ? "user" : "assistant", content: m.content });
   const tools = [
-    { name: "queue_task", description: "Поставить задачу на поиск/исследование в интернете (выполнит Claude в чате).", inputSchema: { type: "object", properties: { type: { type: "string", enum: Object.keys(TASK_TYPES) }, text: { type: "string" }, heroId: { type: "string" } }, required: ["type", "text"] },
-      execute: async (i) => { await queueTask(i.type, i.text, i.heroId ? { heroId: i.heroId } : {}, true); return { ok: true }; } },
+    { name: "queue_task", description: "Поставить задачу на поиск/исследование в интернете (выполнит Claude в чате).", inputSchema: { type: "object", properties: { type: { type: "string", enum: Object.keys(TASK_TYPES) }, text: { type: "string" }, heroId: { type: "string" }, goalId: { type: "string" } }, required: ["type", "text"] },
+      execute: async (i) => { await queueTask(i.type, i.text, Object.fromEntries([["heroId", i.heroId], ["goalId", i.goalId]].filter(([, v]) => v)), true); return { ok: true }; } },
+    { name: "create_goal", description: "Создать новую цель (бизнес-задачу), под которую агент ищет людей и пишет посты. Детали конкретного актива — в asset, они не попадают в посты.", inputSchema: { type: "object", properties: { title: { type: "string" }, description: { type: "string" }, asset: { type: "string" } }, required: ["title", "description"] },
+      execute: async (i) => { const id = await createGoal(i.title, i.description, i.asset || ""); return { id }; } },
     { name: "add_correction", description: "Добавить постоянное правило для всех будущих постов.", inputSchema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] },
       execute: async (i) => { await addCorrection(i.text); return { ok: true }; } },
-    { name: "write_post", description: "Написать 2 варианта поста о герое по его карточке (id героя из данных).", inputSchema: { type: "object", properties: { heroId: { type: "string" } }, required: ["heroId"] },
-      execute: async (i) => { const x = S.heroes.find((y) => y.id === i.heroId); if (!x) throw new Error("Нет такого героя"); if (!(x.facts || []).length) throw new Error("У героя нет фактов — сначала исследование"); writePost(x); return { started: true }; } },
+    { name: "write_post", description: "Написать 2 варианта поста о герое по его карточке (id героя из данных), при необходимости под цель и угол.", inputSchema: { type: "object", properties: { heroId: { type: "string" }, goalId: { type: "string" }, angle: { type: "string" } }, required: ["heroId"] },
+      execute: async (i) => { const x = S.heroes.find((y) => y.id === i.heroId); if (!x) throw new Error("Нет такого героя"); if (!(x.facts || []).length) throw new Error("У героя нет фактов — сначала исследование"); writePost(x, i.goalId || null, i.angle || ""); return { started: true }; } },
     { name: "get_hero", description: "Полная карточка героя: факты, цитаты, анализ.", inputSchema: { type: "object", properties: { heroId: { type: "string" } }, required: ["heroId"] },
       execute: async (i) => cardFor(S.heroes.find((y) => y.id === i.heroId) || {}) },
   ];
@@ -849,6 +1025,7 @@ render();
   if (!c?.use) { S.dbChecked = S.sampleChecked = true; render(); return; }
   const [db, sample, user] = await Promise.all([c.use("db"), c.use("sample"), c.use("user")]);
   S.db = db; S.sample = sample; S.dbChecked = S.sampleChecked = true;
+  if (user?.id) { try { S.uid = await user.id(); } catch (e) {} }
   if (user?.can) { try { const w = await user.can("data.write"); if (w === false) S.canWrite = false; } catch (e) {} }
   if (db) subscribe();
   render();

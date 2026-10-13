@@ -130,8 +130,16 @@ def author_system(profile: dict) -> str:
     return system
 
 
-def write(llm: LLM, profile: dict, card: HeroCard, feedback: str = "") -> Draft:
-    task = f"КАРТОЧКА ГЕРОЯ:\n{_dump(card)}"
+def goal_block(goal: str) -> str:
+    if not goal:
+        return ""
+    return ("\n\nCAMPAIGN GOAL (the business task this post serves; written in Russian): " + goal +
+            "\nThe post must make the people this goal needs notice the author and see her as the person to talk to, "
+            "without selling. NEVER mention, describe or hint at the specific asset, client or deal behind this goal.")
+
+
+def write(llm: LLM, profile: dict, card: HeroCard, feedback: str = "", goal: str = "") -> Draft:
+    task = f"КАРТОЧКА ГЕРОЯ:\n{_dump(card)}{goal_block(goal)}"
     if feedback:
         task += f"\n\nРЕДАКТОР ВЕРНУЛ ЧЕРНОВИК. Исправь:\n{feedback}"
     return llm.parse(author_system(profile), task, Draft, effort="high")

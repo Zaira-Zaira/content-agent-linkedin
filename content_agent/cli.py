@@ -41,7 +41,7 @@ def cmd_process(args, profile):
 
 
 def cmd_run(args, profile):
-    pipeline.run(LLM(args.model), profile, args.posts, args.candidates, args.focus or "")
+    pipeline.run(LLM(args.model), profile, args.posts, args.candidates, args.focus or "", args.goal or "")
     print("\nДальше: python -m content_agent list → review <id>")
 
 
@@ -207,6 +207,7 @@ def main(argv=None):
     p.add_argument("--posts", type=int, default=3, help="Сколько постов подготовить")
     p.add_argument("--candidates", type=int, default=8)
     p.add_argument("--focus")
+    p.add_argument("--goal", help="Бизнес-задача: «найти покупателей на трофейный отель»")
     p.set_defaults(fn=cmd_run)
 
     sub.add_parser("list", help="Очередь и статусы").set_defaults(fn=cmd_list)

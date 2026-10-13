@@ -13,7 +13,7 @@ def log(msg: str) -> None:
     print(f"  · {msg}", flush=True)
 
 
-def process_candidate(llm: LLM, profile: dict, candidate: dict) -> dict:
+def process_candidate(llm: LLM, profile: dict, candidate: dict, goal: str = "") -> dict:
     """Кандидат → проверенные черновики в очереди на решение человека."""
     rules = profile["rules"]
     post = {
@@ -24,6 +24,7 @@ def process_candidate(llm: LLM, profile: dict, candidate: dict) -> dict:
         "candidate": candidate,
         "status": "in_progress",
         "history": [],
+        "goal": goal or None,
     }
 
     # Этап 2: исследование + анализ, с возвратом при банальном инсайте
@@ -58,7 +59,7 @@ def process_candidate(llm: LLM, profile: dict, candidate: dict) -> dict:
     feedback = ""
     for attempt in range(rules["max_rewrite_loops"] + 1):
         log(f"Автор: 2 варианта поста (попытка {attempt + 1})")
-        draft = agents.write(llm, profile, card, feedback)
+        draft = agents.write(llm, profile, card, feedback, goal)
         if draft.status == "NEED_MORE_DATA":
             post["status"] = "need_more_data"
             post["missing_data"] = draft.missing_data
@@ -81,8 +82,11 @@ def process_candidate(llm: LLM, profile: dict, candidate: dict) -> dict:
     return post
 
 
-def run(llm: LLM, profile: dict, n_posts: int, n_candidates: int = 8, focus: str = "") -> list[dict]:
-    log("Разведчик: ищу героев")
+def run(llm: LLM, profile: dict, n_posts: int, n_candidates: int = 8, focus: str = "", goal: str = "") -> list[dict]:
+    log("Разведчик: ищу героев" + (f" под цель «{goal}»" if goal else ""))
+    if goal:
+        focus = (f"ЦЕЛЬ: {goal}. Ищи людей и компании, которые сами относятся к нужной для этой цели аудитории "
+                 f"или которых эта аудитория уважает, с публичным свежим поводом. " + focus).strip()
     candidates = agents.scout(llm, profile, n_candidates, focus)
     data = [c.model_dump() | {"total": c.scores.total} for c in candidates]
     path = storage.save_candidates(data)
@@ -91,5 +95,5 @@ def run(llm: LLM, profile: dict, n_posts: int, n_candidates: int = 8, focus: str
     for c in data:
         if sum(p["status"] in {"ready_for_review", "needs_human_fix"} for p in results) >= n_posts:
             break
-        results.append(process_candidate(llm, profile, c))
+        results.append(process_candidate(llm, profile, c, goal))
     return results
