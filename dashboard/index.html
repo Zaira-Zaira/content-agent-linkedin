@@ -255,7 +255,9 @@ const fmtDate = (s) => { if (!s) return "—"; const d = new Date(s); return isN
 const total = (sc) => sc ? Object.values(sc).reduce((a, b) => a + Math.max(0, Math.min(5, +b || 0)), 0) : 0;
 const segChip = (s) => h("span", { class: "chip " + s }, SEG[s]?.label || s || "—");
 const statusChip = (map, s) => { const [l, c] = map[s] || [s, ""]; return h("span", { class: "chip " + c }, l); };
-const slug = (t) => (t || "x").toLowerCase().replace(/[^a-zа-я0-9ё]+/gi, "-").replace(/^-|-$/g, "").slice(0, 50) || "x";
+// id документов в базе: только латиница, цифры и «-» — кириллицу транслитерируем
+const TRANSLIT = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
+const slug = (t) => (t || "x").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[а-яё]/g, (c) => TRANSLIT[c] ?? "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50) || "x";
 const sampleErr = (e) => ({
   not_granted: "Доступ к Claude не разрешён для этой страницы.",
   rate_limited: "Слишком много запросов подряд. Подождите минуту.",
