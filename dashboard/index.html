@@ -265,7 +265,31 @@ const sampleErr = (e) => ({
 }[e?.code] || "Claude не ответил: " + (e?.message || "ошибка"));
 
 // ---------- проверки редактора (как в checks.py) ----------
-function checkPost(text, handle, hero) {
+const TAG_BANNED = ["amazing", "incredible", "outstanding", "excited to share", "in today's dynamic market", "in today's world", "game-changer", "game changer", "halfway through", "contact me", "dm me", "i represent", "it's no secret", "synergy", "next level", "deep dive", "по данным сми", "according to media", "reportedly"];
+function checkTagPost(text) {
+  const errors = [], warnings = [], ok = [];
+  const body = (text || "").trim(), low = body.toLowerCase(), n = body.length;
+  const isList = /(^|\n)\s*(\*\*)?\s*(\d+[.)]|[1-9]\uFE0F?\u20E3|→)/.test(body);
+  if (n > 2000) errors.push(`Длина ${n} знаков, максимум 2 000`);
+  else if (n > 1300 && !isList) warnings.push(`Длина ${n} — для короткого поста до 1 300`);
+  else ok.push(`Длина ${n} знаков`);
+  const first = (body.split("\n")[0] || "").trim();
+  if (!/^\*\*.+\*\*$/.test(first)) warnings.push("Хук не выделен жирным (**…**)");
+  const hookWords = first.replace(/\*/g, "").split(/\s+/).filter(Boolean).length;
+  hookWords > 10 ? warnings.push(`Хук ${hookWords} слов, лучше до 10`) : ok.push("Хук короткий");
+  const banned = TAG_BANNED.filter((w) => low.includes(w));
+  banned.length ? errors.push("Запрещено гайдлайном: " + banned.join(", ")) : ok.push("Без штампов и прямой продажи");
+  const mentions = body.match(/(^|[^\w@])@[\p{L}\p{N}][\p{L}\p{N}&.'’-]*/gu) || [];
+  if (!mentions.length) errors.push("Нет @отметок компаний и людей");
+  else if (mentions.length > 10) errors.push(`Отметок: ${mentions.length} — не больше 3–4 компаний и 5–6 людей`);
+  else ok.push(`Отметок: ${mentions.length}`);
+  if (/https?:\/\/|www\./.test(body)) errors.push("Ссылка в тексте — только в первый комментарий");
+  if ((body.match(/!/g) || []).length > 1) errors.push("Больше одного «!»");
+  const emo = (body.match(/\p{Extended_Pictographic}/gu) || []).length; if (emo > 0) warnings.push("Эмодзи — только цифры-эмодзи в аналитике");
+  return { errors, warnings, ok, passed: errors.length === 0 };
+}
+function checkPost(text, handle, hero, style) {
+  if (style === "tags") return checkTagPost(text);
   const errors = [], warnings = [], ok = [];
   const body = (text || "").trim(), low = body.toLowerCase();
   const n = body.length;
@@ -535,6 +559,7 @@ function postDetail(p) {
     h("div", {}, h("h2", { style: "font-size:18px" }, p.hero || p.title || "Пост"), h("div", { class: "note" }, [hero.lens, p.expected_action && "Цель: " + p.expected_action].filter(Boolean).join(" · "))),
     h("div", { class: "chips" }, segChip(p.segment), statusChip(POST_STATUS, p.status))));
   const pg = S.goals.find((g) => g.id === p.goalId);
+  if (p.style === "tags") panel.append(tagInfo(p));
   if ((p.tags || []).length) panel.append(h("div", { class: "chips" }, h("span", { class: "note" }, "Отметить:"), p.tags.map((c) => h("span", { class: "chip buy_side" }, "@" + c))));
   if ((p.facts_to_verify || []).length) panel.append(h("div", { class: "banner" }, h("strong", {}, "Проверьте перед публикацией: "), p.facts_to_verify.join("; ")));
   if (pg) panel.append(h("div", { class: "chips" }, h("button", { class: "fbtn", onclick: () => go("goals", { goalId: pg.id, newGoal: false }) }, "Цель: " + pg.title), p.angle ? h("span", { class: "chip" }, "Угол: " + p.angle) : null));
@@ -543,7 +568,7 @@ function postDetail(p) {
     const vs = h("div", { class: "variants" });
     for (const v of ["a", "b"]) {
       const text = p["variant_" + v]; if (!text) continue;
-      const c = checkPost(text, hero.handle || p.handle, p.hero);
+      const c = checkPost(text, hero.handle || p.handle, p.hero, p.style);
       vs.append(h("div", { class: "variant" },
         h("div", { class: "panel-head" }, h("strong", {}, `Вариант ${v.toUpperCase()}`), h("span", { class: "chips" }, h("span", { class: "chip" }, p["hook_type_" + v] || "хук"), h("span", { class: "chip " + (c.passed ? "good" : "bad") }, c.passed ? "проверки пройдены" : `ошибок: ${c.errors.length}`))),
         h("div", { class: "post-text" }, text),
@@ -559,7 +584,7 @@ function postDetail(p) {
     ta.value = p.final_text || p["variant_" + v] || "";
     const live = h("div", {});
     const cnt = h("span", { class: "count" });
-    const upd = () => { const c = checkPost(ta.value, hero.handle || p.handle, p.hero); live.replaceChildren(checksList(c)); cnt.textContent = `${ta.value.trim().length} знаков`; };
+    const upd = () => { const c = checkPost(ta.value, hero.handle || p.handle, p.hero, p.style); live.replaceChildren(checksList(c)); cnt.textContent = `${ta.value.trim().length} знаков`; };
     ta.addEventListener("input", upd); upd();
     panel.append(h("div", { class: "panel-head" }, h("label", { for: tid, class: "note" }, `Финальный текст (вариант ${v.toUpperCase()}). Прочитайте вслух и добавьте одну деталь из своего опыта.`), cnt), ta, live);
     if (p.status !== "published") {
@@ -583,6 +608,31 @@ function postDetail(p) {
   panel.append(h("div", { class: "actions" }, h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: (e) => confirmBtn(e.target, "Удалить пост?", () => remove("posts/" + p.id).then(() => { S.postId = null; })) }, "Удалить пост")));
   return panel;
 }
+const BOLD = (t) => [...t].map((ch) => { const c = ch.codePointAt(0); if (c >= 65 && c <= 90) return String.fromCodePoint(0x1D5D4 + c - 65); if (c >= 97 && c <= 122) return String.fromCodePoint(0x1D5EE + c - 97); if (c >= 48 && c <= 57) return String.fromCodePoint(0x1D7EC + c - 48); return ch; }).join("");
+const toLinkedIn = (text) => (text || "").replace(/\*\*(.+?)\*\*/g, (_, t) => BOLD(t));
+function tagInfo(p) {
+  const box = h("div", { class: "view", style: "gap:10px" });
+  const fmt = p.format ? TAG_FORMATS[p.format] || p.format : null;
+  if (fmt) box.append(h("div", { class: "chips" }, h("span", { class: "chip ecosystem" }, "Формат " + fmt)));
+  if ((p.tag_companies || []).length || (p.tag_people || []).length) {
+    box.append(h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Отметка"), h("th", {}, "Кто"), h("th", {}, "Роль / должность"), h("th", {}, "Проверено"))),
+      h("tbody", {},
+        (p.tag_companies || []).map((c) => h("tr", {}, h("td", {}, "@" + c.name), h("td", {}, "компания"), h("td", { style: "white-space:normal" }, c.role_in_post || ""), h("td", {}, ""))),
+        (p.tag_people || []).map((x) => h("tr", {}, h("td", {}, "@" + x.name), h("td", {}, x.company || ""), h("td", { style: "white-space:normal" }, x.title || ""), h("td", {}, /^https?:/.test(x.verified_source || "") ? h("a", { href: x.verified_source, target: "_blank", rel: "noopener" }, hostOf(x.verified_source)) : (x.verified_source || h("span", { class: "chip bad" }, "не проверено")))))))));
+  }
+  if ((p.verification || []).length) {
+    box.append(h("strong", { style: "font-size:13px" }, `Таблица проверки (${p.verification.length})`));
+    box.append(h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "Утверждение"), h("th", {}, "Значение"), h("th", {}, "Дата"), h("th", {}, "Источник"))),
+      h("tbody", {}, p.verification.map((v) => h("tr", {},
+        h("td", { style: "white-space:normal;min-width:180px" }, v.claim),
+        h("td", {}, v.value || ""),
+        h("td", {}, v.date || ""),
+        h("td", {}, v.source_type === "calc" ? h("span", { class: "chip" }, "расчёт") : /^https?:/.test(v.source_url || "") ? h("a", { href: v.source_url, target: "_blank", rel: "noopener" }, hostOf(v.source_url)) : h("span", { class: "chip bad" }, "нет источника"))))))));
+  }
+  const text = p.final_text || p["variant_" + (p.chosen || "a")] || "";
+  box.append(h("div", { class: "actions" }, h("button", { class: "btn", onclick: () => copy(toLinkedIn(text)) }, "Скопировать для LinkedIn (жирный хук)")));
+  return box;
+}
 function checksList(c) {
   return h("ul", { class: "checks" }, c.errors.map((e) => h("li", { class: "err" }, e)), c.warnings.map((w) => h("li", { class: "wrn" }, w)), c.ok.map((o) => h("li", {}, o)));
 }
@@ -599,7 +649,7 @@ async function copy(text) {
   catch (e) { toast("Не удалось скопировать — выделите текст вручную"); }
 }
 async function approve(p, text) {
-  const c = checkPost(text, (S.heroes.find((x) => x.id === p.heroId) || {}).handle || p.handle, p.hero);
+  const c = checkPost(text, (S.heroes.find((x) => x.id === p.heroId) || {}).handle || p.handle, p.hero, p.style);
   if (!c.passed) { toast("Сначала исправьте ошибки проверки"); return; }
   await save("posts/" + p.id, { final_text: text, status: "approved", approved_at: nowIso(), hook_type: p["hook_type_" + (p.chosen || "a")] || null });
   clearDraft("edit-" + p.id);
@@ -648,6 +698,13 @@ function cardFor(x) {
   const notes = privGet("note", x.id) || x.my_notes; if (notes && x.hero_consent) c.private_notes = notes;
   return c;
 }
+const TAG_RULES = `You write LinkedIn posts IN ENGLISH, first person, for Zaira (luxury hotel transactions). Goal: a fund or hotel owner tagged in the post writes to her themselves. The post never sells directly.
+Logic: 1) compliment through a fact — tag the company and a specific person, say something precise and flattering about their strategy, deal or asset; 2) a short smart conclusion for the market; 3) soft hook: Zaira has buyers with capital who want to buy quietly; the best hotels change hands quietly.
+Structure: hook as the first line in **bold**, a number or contrast, max 10 words → fact with @Company → interpretation ("What I find interesting is not X. It is Y.") → personal compliment with @Person for a concrete decision → one quotable line for the market → soft hook (no request to write) → short strong last line or a question for comments.
+Formats: 1 = one deal → lesson for the market (one main story + 2 supporting companies, 3–4 people tagged); 2 = list "best at what they do" (4 companies, each with a role like "the off-market hunter" and one fact, ends with a question); 3 = analytics "why" (Zaira's view in 4–5 numbered points, 1–2 company tags as examples).
+Tone: confident, lively, like a colleague at a conference; Zaira is a market insider, not a fan. Short sentences, one thought per paragraph. Compliments only through facts. Official quotes in quotation marks, word for word. Arrows (→) and numbering are fine; emoji only as number emoji in analytics.
+Length: up to 1,300 characters (short) or 2,000 (list). 3–4 companies, max 5–6 people tagged.
+Forbidden: clichés ("excited to share", "in today's dynamic market", "game-changer"), empty adjectives (amazing, incredible, outstanding), direct selling ("contact me", "DM me", "I represent"), naming Zaira's own deals or clients, criticism or negative framing of any company, facts from memory or unconfirmed media, paraphrased quotes.`;
 const DRAFT_FORMAT = `All post texts, hook types, expected_action and first_comment in ENGLISH. Return ONLY JSON, no commentary:
 {"status":"OK" | "NEED_MORE_DATA","missing_data":[...],"variant_a":"post text","variant_b":"post text with a different hook","hook_type_a":"…","hook_type_b":"…","facts_used":["source_url",…],"expected_action":"what the reader should do","first_comment":"Sources: url1, url2"}`;
 
@@ -713,8 +770,19 @@ async function rewrite(p, hero, instruction, keep) {
   try {
     if (keep) await addCorrection(instruction);
     const current = p.chosen ? `ТЕКУЩИЙ ТЕКСТ:\n${p.final_text}` : `ВАРИАНТ A:\n${p.variant_a}\n\nВАРИАНТ B:\n${p.variant_b}`;
-    const out = await S.sample.json(`${AUTHOR_RULES}${corrBlock()}${goalBlock(S.goals.find((g) => g.id === p.goalId), p.angle)}\n\nHERO CARD:\n${JSON.stringify(cardFor(hero.hero ? hero : p))}\n\n${current}\n\nAUTHOR'S CORRECTION (may be in Russian): ${instruction}\n\nRewrite applying the correction and keeping every rule. Posts stay in English. ${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
-    const passed = ["a", "b"].some((v) => checkPost(out["variant_" + v], hero.handle || p.handle, p.hero).passed);
+    const out = p.style === "tags" ? await S.sample.json(`${TAG_RULES}${corrBlock()}
+
+VERIFIED FACTS (the ONLY facts, numbers, dates and quotes you may use):
+${JSON.stringify(p.verification || [])}
+TAGS: companies ${JSON.stringify(p.tag_companies || [])}; people ${JSON.stringify(p.tag_people || [])}
+
+${current}
+
+AUTHOR'S CORRECTION (may be in Russian): ${instruction}
+
+Rewrite applying the correction and keeping every rule. Do not add any fact that is not in VERIFIED FACTS. Return ONLY JSON: {"variant_a":"…","variant_b":"… or empty","hook_type_a":"…","hook_type_b":"…"}`, { modelTier: "complex", cache: false })
+    : await S.sample.json(`${AUTHOR_RULES}${corrBlock()}${goalBlock(S.goals.find((g) => g.id === p.goalId), p.angle)}\n\nHERO CARD:\n${JSON.stringify(cardFor(hero.hero ? hero : p))}\n\n${current}\n\nAUTHOR'S CORRECTION (may be in Russian): ${instruction}\n\nRewrite applying the correction and keeping every rule. Posts stay in English. ${DRAFT_FORMAT}`, { modelTier: "complex", cache: false });
+    const passed = ["a", "b"].some((v) => out["variant_" + v] && checkPost(out["variant_" + v], hero.handle || p.handle, p.hero, p.style).passed);
     await save("posts/" + p.id, {
       variant_a: out.variant_a || p.variant_a, variant_b: out.variant_b || p.variant_b, hook_type_a: out.hook_type_a || p.hook_type_a, hook_type_b: out.hook_type_b || p.hook_type_b,
       chosen: null, final_text: null, status: passed ? "ready" : "needs_fix", semantic: null, first_comment: out.first_comment || p.first_comment,
@@ -792,13 +860,16 @@ function goalRow(g) {
   const inbound = posts.reduce((a, p) => a + (+p.metrics?.inbound_messages || 0), 0);
   return h("button", { class: "row", "aria-current": String(S.goalId === g.id && S.tab === "goals"), onclick: () => go("goals", { goalId: g.id, newGoal: false }) },
     h("span", { class: "t" }, h("span", {}, g.title), h("span", { class: "chip " + (g.status === "done" ? "good" : g.plan ? "" : "warn") }, g.status === "done" ? "решена" : g.plan ? "в работе" : "нужен план")),
-    h("span", { class: "chips" }, h("span", { class: "chip " + (isPostsMode(g) ? "sell_side" : "buy_side") }, GOAL_MODES[g.mode || "full"][0]), isPostsMode(g) ? null : h("span", { class: "chip" }, `людей: ${people}`), h("span", { class: "chip" }, `постов: ${posts.length}`), inbound ? h("span", { class: "chip good" }, `входящих: ${inbound}`) : null),
+    h("span", { class: "chips" }, h("span", { class: "chip " + (isTagsMode(g) ? "ecosystem" : isPostsMode(g) ? "sell_side" : "buy_side") }, GOAL_MODES[g.mode || "full"][0]), isPostsMode(g) || isTagsMode(g) ? null : h("span", { class: "chip" }, `людей: ${people}`), h("span", { class: "chip" }, `постов: ${posts.length}`), inbound ? h("span", { class: "chip good" }, `входящих: ${inbound}`) : null),
     g.description ? h("span", { class: "s" }, g.description) : null);
 }
 const GOAL_MODES = {
   full: ["Полный план", "Агент составит план, найдёт людей и компании, проанализирует их и напишет посты о них под цель."],
   posts: ["Только посты", "Без поиска людей: агент составит серию постов под цель, с отметкой нужных компаний, и напишет их."],
+  tags: ["Посты с отметками компаний", "По гайдлайну: агент найдёт 3–4 компании-владельца со свежим поводом, проверит факты по официальным источникам и ключевых людей, и напишет пост с @отметками и таблицей проверки."],
 };
+const TAG_FORMATS = { auto: "Агент выберет сам (чередовать)", 1: "1 · Одна сделка → урок для рынка", 2: "2 · Список «лучшие в своём»", 3: "3 · Аналитика «почему»" };
+const isTagsMode = (g) => g?.mode === "tags";
 const isPostsMode = (g) => g?.mode === "posts";
 async function createGoal(title, description, asset, mode = "full", facts = "") {
   const id = new Date().toISOString().slice(0, 10) + "_" + slug(title).slice(0, 40) + "_" + Math.random().toString(36).slice(2, 5);
@@ -820,9 +891,9 @@ function newGoalForm() {
   const a = h("textarea", { id: "goal-asset", class: "short", placeholder: "Детали актива: тип, ключи, регион, концепция, ориентир цены. Видите только вы и агент при планировании. В посты не попадут." });
   const fx = h("textarea", { id: "goal-facts", class: "short", placeholder: "Факты, цифры, компании и ссылки, на которые можно опираться в постах. Например: Mandarin Oriental — 46 отелей, план удвоить портфель (ссылка)." });
   const mode = S.newGoalMode || "full";
-  const modeBox = h("div", { class: "grid2", role: "radiogroup", "aria-label": "Тип цели" }, Object.entries(GOAL_MODES).map(([k, [l, d2]]) =>
+  const modeBox = h("div", { class: "kpis", role: "radiogroup", "aria-label": "Тип цели" }, Object.entries(GOAL_MODES).map(([k, [l, d2]]) =>
     h("button", { class: "row", role: "radio", "aria-checked": String(mode === k), "aria-current": String(mode === k), onclick: () => { S.newGoalMode = k; render(); } },
-      h("span", { class: "t" }, l), h("span", { class: "s", style: "-webkit-line-clamp:4" }, d2))));
+      h("span", { class: "t" }, l), h("span", { class: "s", style: "-webkit-line-clamp:5" }, d2))));
   const p = h("section", { class: "panel" },
     h("h2", { style: "font-size:18px" }, "Новая цель"),
     modeBox,
@@ -831,15 +902,17 @@ function newGoalForm() {
     h("label", { class: "f", for: "goal-desc" }, "Подробности (видны всем, у кого есть доступ к дашборду — детали актива пишите ниже)"), d,
     h("label", { class: "f", for: "goal-asset" }, "Конфиденциально: о каком активе или клиенте речь (видите только вы)"), a,
     mode === "posts" ? [h("label", { class: "f", for: "goal-facts" }, "Факты для постов (необязательно, но без них агент не будет называть цифры и сделки)"), fx] : null,
+    mode === "tags" ? [h("label", { class: "f", for: "goal-facts" }, "Компании или регион (необязательно): кого рассмотреть или исключить"), fx] : null,
     h("div", { class: "actions" },
       h("button", { class: "btn primary", disabled: !S.canWrite || !S.db, onclick: async () => {
         const title = t.value.trim(); if (!title) { toast("Опишите задачу"); return; }
-        const facts = mode === "posts" ? fx.value.trim() : "";
+        const facts = mode === "posts" || mode === "tags" ? fx.value.trim() : "";
         const id = await createGoal(title, d.value.trim(), a.value.trim(), mode, facts);
         clearDraft("goal-title", "goal-desc", "goal-asset", "goal-facts");
         S.newGoalMode = null;
         render();
         const g = { id, title, description: d.value.trim(), asset: a.value.trim(), mode, facts };
+        if (mode === "tags") return;
         if (S.sample) makePlan(g);
       } }, S.sample ? "Создать и составить план" : "Создать цель"),
       S.goals.length ? h("button", { class: "btn ghost", onclick: () => { S.newGoal = false; render(); } }, "Отмена") : null));
@@ -967,7 +1040,42 @@ function postsPlanSection(g, p) {
   if (plan.confidentiality) kv.append(h("dt", {}, "Не упоминать"), h("dd", {}, plan.confidentiality));
   p.append(kv);
 }
+function tagGoalDetail(g) {
+  const posts = S.posts.filter((x) => x.goalId === g.id);
+  const withM = posts.filter((x) => x.metrics);
+  const companies = new Set(posts.flatMap((x) => (x.tag_companies || []).map((c) => c.name)));
+  const p = h("section", { class: "panel" });
+  p.append(h("div", { class: "panel-head" }, h("h2", { style: "font-size:18px" }, g.title), h("span", { class: "chips" }, h("span", { class: "chip ecosystem" }, GOAL_MODES.tags[0]), h("span", { class: "chip " + (g.status === "done" ? "good" : "") }, g.status === "done" ? "решена" : "в работе"))));
+  if (g.description) p.append(h("p", { style: "margin:0" }, g.description));
+  if (g.facts) p.append(h("p", { class: "note", style: "margin:0" }, "Компании / регион: " + g.facts));
+  p.append(h("div", { class: "kpis" },
+    kpi("Постов", posts.length, posts.filter((x) => x.status === "published").length + " опубликовано"),
+    kpi("Компаний отмечено", companies.size, "по всем постам цели"),
+    kpi("Входящие", withM.reduce((a, x) => a + (+x.metrics.inbound_messages || 0), 0), "по постам цели", true)));
+  p.append(h("div", { class: "insight" }, h("small", {}, "Как работает агент"),
+    "1) Ищет 3–4 компании-владельца трофейных отелей (от €200m) со свежим поводом за 6–18 месяцев. 2) Проверяет каждую цифру, дату и цитату по официальным источникам компании — пресс-релиз, отчёт инвесторам, филинги. 3) Находит CIO / Head of Investments / CEO и проверяет должность. 4) Даёт каждой компании роль и пишет пост в выбранном формате с таблицей проверки."));
+  const fsel = h("select", { id: "tagfmt-" + g.id, "aria-label": "Формат поста" }, Object.entries(TAG_FORMATS).map(([k, l]) => h("option", { value: k }, l)));
+  const extra = h("textarea", { id: "tagextra-" + g.id, class: "short", placeholder: "Пожелания к этому посту (необязательно): регион, тип компаний, кого отметить" });
+  const used = [...companies];
+  p.append(h("label", { class: "f", for: "tagfmt-" + g.id }, "Формат"), fsel, extra,
+    h("div", { class: "actions" },
+      h("button", { class: "btn primary", disabled: !S.canWrite || !S.db, onclick: () => {
+        const fmt = fsel.value;
+        const text = `Пост с отметками компаний под цель «${g.title}» — формат: ${TAG_FORMATS[fmt]}` + (extra.value.trim() ? `. Пожелания: ${extra.value.trim()}` : "") + (g.facts ? `. Компании/регион: ${g.facts}` : "") + (used.length ? `. Уже отмечали: ${used.join(", ")} — выбрать других` : "");
+        queueAndRun("tag_post", text, { goalId: g.id, format: fmt }); clearDraft("tagextra-" + g.id); extra.value = "";
+      } }, "Подготовить пост"),
+      h("button", { class: "btn", disabled: !S.sample, onclick: () => askAbout(`Цель «${g.title}» (посты с отметками компаний). Какие компании-владельцы и какой формат взять для следующего поста?`) }, "Спросить Claude"),
+      g.status !== "done" ? h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("goals/" + g.id, { status: "done", done_at: nowIso() }) }, "Цель решена") : h("button", { class: "btn ghost", disabled: !S.canWrite, onclick: () => save("goals/" + g.id, { status: "active" }) }, "Вернуть в работу")));
+  p.append(h("p", { class: "note", style: "margin:0" }, "Поиск и проверка фактов идут в интернете, поэтому пост готовит агент в чате Claude Code: «Подготовить пост» копирует команду — вставьте её в чат."));
+  const gq = S.tasks.filter((t) => t.goalId === g.id && ["queued", "running"].includes(t.status));
+  if (gq.length) p.append(h("div", {}, h("div", { class: "panel-head" }, h("span", { class: "note" }, `Задачи по цели: ${gq.length}`), runAllBtn(gq)), gq.map(taskRow)));
+  p.append(h("h3", { style: "font-size:13px;color:var(--muted);font-weight:500" }, `Посты (${posts.length})`));
+  p.append(posts.length ? h("div", { class: "list" }, posts.map(postRow)) : h("p", { class: "note", style: "margin:0" }, "Пока нет постов."));
+  p.append(h("div", { class: "actions" }, h("button", { class: "btn ghost danger", disabled: !S.canWrite, onclick: (e) => confirmBtn(e.target, "Удалить цель?", () => remove("goals/" + g.id).then(() => { S.goalId = null; })) }, "Удалить цель")));
+  return p;
+}
 function goalDetail(g) {
+  if (isTagsMode(g)) return tagGoalDetail(g);
   const plan = g.plan;
   const people = S.heroes.filter((x) => (x.goalIds || []).includes(g.id));
   const posts = S.posts.filter((p) => p.goalId === g.id);
